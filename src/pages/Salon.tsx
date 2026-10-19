@@ -29,6 +29,7 @@ export function Salon() {
   const [tables, setTables] = useState<Table[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [waiting, setWaiting] = useState<Set<string>>(new Set())
+  const [readyOrders, setReadyOrders] = useState<Set<string>>(new Set())
   const [areaId, setAreaId] = useState<string | null>(null)
   const [selected, setSelected] = useState<Table | null>(null)
   const [loading, setLoading] = useState(true)
@@ -38,12 +39,13 @@ export function Salon() {
   const loadOrders = useCallback(async () => {
     const [o, p] = await Promise.all([
       supabase.from('orders').select('*').eq('restaurant_id', rid).eq('status', 'open').not('table_id', 'is', null),
-      supabase.from('order_items').select('order_id').eq('restaurant_id', rid).eq('status', 'pending'),
+      supabase.from('order_items').select('order_id, status').eq('restaurant_id', rid).in('status', ['pending', 'ready']),
     ])
     if (o.error || p.error) setError(errorMessage(o.error ?? p.error))
     else {
       setOrders(o.data)
-      setWaiting(new Set(p.data.map((x) => x.order_id)))
+      setWaiting(new Set(p.data.filter((x) => x.status === 'pending').map((x) => x.order_id)))
+      setReadyOrders(new Set(p.data.filter((x) => x.status === 'ready').map((x) => x.order_id)))
     }
   }, [rid])
 
@@ -126,12 +128,13 @@ export function Salon() {
               {visible.map((t) => {
                 const order = orderByTable.get(t.id)
                 const toSend = order ? waiting.has(order.id) : false
+                const toServe = order ? readyOrders.has(order.id) : false
                 return (
                   <button
                     key={t.id}
-                    className={`table-tile${order ? ' busy' : ''}${toSend ? ' waiting' : ''}`}
+                    className={`table-tile${order ? ' busy' : ''}${toSend || toServe ? ' waiting' : ''}`}
                     onClick={() => setSelected(t)}
-                    aria-label={`Mesa ${t.name}, ${order ? 'ocupada' : 'libre'}${toSend ? ', con pedido sin enviar' : ''}`}
+                    aria-label={`Mesa ${t.name}, ${order ? 'ocupada' : 'libre'}${toServe ? ', con platos listos' : toSend ? ', con pedido sin enviar' : ''}`}
                   >
                     <span className="num">{t.name}</span>
                     <span className="meta">
@@ -139,7 +142,7 @@ export function Salon() {
                         <>
                           <strong>{order.total > 0 ? formatMoney(order.total) : 'Sin pedidos'}</strong>
                           <br />
-                          {toSend ? 'Sin enviar' : formatElapsed(minutesSince(order.opened_at, now))}
+                          {toServe ? 'Listo para servir' : toSend ? 'Sin enviar' : formatElapsed(minutesSince(order.opened_at, now))}
                         </>
                       ) : (
                         `${t.seats} lugares`

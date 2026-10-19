@@ -9,8 +9,8 @@ Nombre provisorio.
 | --- | --- | --- |
 | 0 | Modelo de datos con seguridad por local, login, alta de local, salón en vivo, PWA instalable | Listo |
 | 1 | Carta (categorías, productos, modificadores), toma de pedidos en mesa y mostrador, envío a cocina, comandas abiertas | Listo |
-| 2 | Pantalla de cocina (KDS), caja (apertura, cobros, arqueo) | Próximo |
-| 3 | Stock con recetas, reportes, app del dueño | — |
+| 2 | Pantalla de cocina (KDS), cobro con varios medios de pago, descuentos y propinas, caja con arqueo | Listo |
+| 3 | Stock con recetas, reportes, app del dueño | Próximo |
 | 4 | Factura electrónica ARCA, Mercado Pago, modo offline completo | — |
 
 ## Correr el proyecto
@@ -42,7 +42,7 @@ tests/e2e/             Prueba de punta a punta con Playwright + backend simulado
 
 ```bash
 npm run build && npx vite preview --port 4173 &
-python3 tests/e2e/test_flows.py
+cd tests/e2e && python3 test_flows.py
 ```
 
 La prueba e2e usa un backend simulado (`tests/e2e/fake_supabase.py`) para no depender de la red.

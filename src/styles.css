@@ -897,3 +897,326 @@ a.btn {
     display: none;
   }
 }
+
+/* =============================================================
+   Sprint 2 · pantalla de cocina (KDS)
+   Fondo oscuro para leer a distancia; los pedidos son tickets de papel.
+   El borde superior cuenta la demora: verde, mostaza (10 min), tomate (20 min).
+   ============================================================= */
+
+.kds {
+  min-height: 100dvh;
+  background: #1b2420;
+  color: #e9eee9;
+  padding: 0 16px 24px;
+}
+.kds .notice {
+  margin-bottom: 12px;
+}
+.kds-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #1b2420;
+  padding: 14px 0 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.kds-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.kds-stations {
+  padding-bottom: 0;
+}
+.kds .areas button {
+  border-color: #3a4842;
+  color: #cdd8d1;
+}
+.kds .areas button[aria-pressed='true'] {
+  background: var(--paper);
+  border-color: var(--paper);
+  color: var(--ink);
+}
+.kds-sound {
+  min-height: 40px;
+  border-radius: 999px;
+  border: 1.5px solid #3a4842;
+  background: transparent;
+  color: #cdd8d1;
+  padding: 0 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.kds-sound.on {
+  border-color: var(--mustard);
+  color: var(--mustard);
+}
+.kds-empty {
+  color: #9fb0a7;
+  padding: 40px 0;
+  font-size: 1.125rem;
+}
+
+.kds-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.kds-ticket {
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: var(--r-sm);
+  border-top: 8px solid var(--bottle);
+  display: grid;
+  overflow: hidden;
+}
+.kds-ticket.warn {
+  border-top-color: var(--mustard);
+}
+.kds-ticket.late {
+  border-top-color: var(--tomato);
+}
+.kds-ticket-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px 0;
+}
+.kds-where {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.625rem;
+  line-height: 1.05;
+}
+.kds-time {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.375rem;
+  white-space: nowrap;
+}
+.kds-ticket.warn .kds-time {
+  color: #8a6106;
+}
+.kds-ticket.late .kds-time {
+  color: var(--tomato);
+}
+.kds-meta {
+  padding: 0 14px 6px;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+  border-bottom: 1px dashed #e2d8b8;
+}
+.kds-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.kds-item button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  gap: 8px;
+  align-items: start;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px dashed #efe7cd;
+  padding: 10px 14px;
+  min-height: 52px;
+  cursor: pointer;
+}
+.kds-item button:disabled {
+  cursor: default;
+}
+.kds-qty {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.kds-text {
+  display: grid;
+  gap: 2px;
+}
+.kds-name {
+  font-weight: 600;
+  font-size: 1.0625rem;
+  line-height: 1.25;
+}
+.kds-mods {
+  font-size: 0.9375rem;
+  color: var(--ink-soft);
+}
+.kds-note {
+  font-weight: 600;
+  font-style: italic;
+  color: #7d2617;
+}
+.kds-state {
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  padding-top: 3px;
+}
+.kds-item.preparing {
+  background: var(--mustard-soft);
+}
+.kds-item.ready .kds-name,
+.kds-item.ready .kds-qty {
+  color: var(--bottle);
+}
+.kds-item.cancelled .kds-name,
+.kds-item.cancelled .kds-qty {
+  text-decoration: line-through;
+  color: var(--ink-soft);
+}
+.kds-item.cancelled .kds-state {
+  color: var(--tomato);
+}
+.kds-actions {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 8px;
+  padding: 10px 14px 14px;
+}
+
+.kds-ready {
+  margin-top: 28px;
+}
+.kds-ready h2 {
+  font-size: 1.125rem;
+  color: #cdd8d1;
+  margin-bottom: 10px;
+}
+.kds-ready-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 8px;
+}
+.kds-ready-card {
+  border: 1.5px solid #3a4842;
+  border-radius: var(--r-sm);
+  padding: 8px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.kds-ready-items {
+  color: #9fb0a7;
+  font-size: 0.875rem;
+}
+.kds-ready-card .link-btn {
+  color: var(--mustard);
+}
+
+/* =============================================================
+   Sprint 2 · cobro y caja
+   ============================================================= */
+
+.cash-big {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 2.25rem;
+  line-height: 1.1;
+}
+.cash-grid {
+  display: grid;
+  gap: 16px;
+}
+.cash-expected {
+  gap: 6px;
+  align-content: start;
+}
+.cash-side .section:last-child {
+  margin-bottom: 0;
+}
+@media (min-width: 900px) {
+  .cash-grid {
+    grid-template-columns: minmax(280px, 360px) 1fr;
+    align-items: start;
+  }
+}
+.price.neg {
+  color: var(--tomato);
+}
+.price.pos {
+  color: #8a6106;
+}
+
+.method-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.method-chips button {
+  min-height: var(--tap);
+  padding: 0 16px;
+  border-radius: var(--r-md);
+  border: 1.5px solid var(--line);
+  background: var(--card);
+  font-weight: 600;
+  cursor: pointer;
+}
+.method-chips button[aria-checked='true'] {
+  border-color: var(--bottle);
+  background: var(--bottle-soft);
+  color: var(--bottle-deep);
+  box-shadow: inset 0 0 0 1px var(--bottle);
+}
+.method-chips button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.discount-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: end;
+}
+.switcher.compact {
+  grid-template-columns: 44px 44px;
+}
+.switcher.compact button {
+  min-height: 40px;
+}
+.change-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  background: var(--mustard-soft);
+  border-radius: var(--r-sm);
+  padding: 8px 14px;
+  font-weight: 600;
+}
+.link-btn.inline {
+  padding: 0 0 0 10px;
+  font-size: 0.875rem;
+  min-height: 0;
+}
+
+/* Los campos ocupan su columna y pueden achicarse: evita desbordes horizontales en celular */
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  min-width: 0;
+}
+.field,
+.field-row > *,
+.discount-row > * {
+  min-width: 0;
+}
+.sheet {
+  overflow-x: hidden;
+}

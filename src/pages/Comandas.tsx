@@ -8,7 +8,7 @@ import type { Enums } from '../lib/database.types'
 import { TopBar } from '../components/AppShell'
 import { Sheet } from '../components/Sheet'
 
-type Row = { order: Order; tableName: string | null; pending: number }
+type Row = { order: Order; tableName: string | null; pending: number; ready: number }
 
 export function Comandas() {
   const { restaurant, role } = useCurrentRestaurant()
@@ -24,15 +24,27 @@ export function Comandas() {
     const [o, t, i] = await Promise.all([
       supabase.from('orders').select('*').eq('restaurant_id', rid).eq('status', 'open').order('opened_at'),
       supabase.from('tables').select('id, name').eq('restaurant_id', rid),
-      supabase.from('order_items').select('order_id').eq('restaurant_id', rid).eq('status', 'pending'),
+      supabase.from('order_items').select('order_id, status').eq('restaurant_id', rid).in('status', ['pending', 'ready']),
     ])
     if (o.error || t.error || i.error) {
       setError(errorMessage(o.error ?? t.error ?? i.error))
     } else {
       const names = new Map(t.data.map((x) => [x.id, x.name]))
-      const pending = new Map<string, number>()
-      for (const x of i.data) pending.set(x.order_id, (pending.get(x.order_id) ?? 0) + 1)
-      setRows(o.data.map((order) => ({ order, tableName: order.table_id ? names.get(order.table_id) ?? null : null, pending: pending.get(order.id) ?? 0 })))
+      const count = (status: string) => {
+        const m = new Map<string, number>()
+        for (const x of i.data) if (x.status === status) m.set(x.order_id, (m.get(x.order_id) ?? 0) + 1)
+        return m
+      }
+      const pending = count('pending')
+      const ready = count('ready')
+      setRows(
+        o.data.map((order) => ({
+          order,
+          tableName: order.table_id ? names.get(order.table_id) ?? null : null,
+          pending: pending.get(order.id) ?? 0,
+          ready: ready.get(order.id) ?? 0,
+        })),
+      )
       setError(null)
     }
     setLoading(false)
@@ -74,13 +86,14 @@ export function Comandas() {
           </div>
         ) : (
           <div className="list">
-            {rows.map(({ order, tableName, pending }) => (
+            {rows.map(({ order, tableName, pending, ready }) => (
               <button key={order.id} className="list-row" onClick={() => navigate(`/comanda/${order.id}`)}>
                 <span className="product-line">
                   <span>{orderTitle(order, tableName)}</span>
                   <span className="product-sub">
                     #{order.number} · hace {formatElapsed(minutesSince(order.opened_at))}
                     {pending > 0 && <span className="pending-flag"> · {pending} por enviar</span>}
+                    {ready > 0 && <span className="pending-flag"> · {ready} listo{ready > 1 ? 's' : ''} para servir</span>}
                   </span>
                 </span>
                 <span className="price">{formatMoney(order.total)}</span>

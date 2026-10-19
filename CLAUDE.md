@@ -24,6 +24,10 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
   - Precio de ítems: el trigger `order_items_enrich` toma nombre, precio y estación del producto y
     reconstruye los modificadores desde sus ids (el cliente manda `modifiers: [{id}]`). El dispositivo no
     puede imponer precios. Validación de mínimos/máximos de cada grupo: hoy solo en el cliente (`validateSelection`).
+  - Pagos (`payments_before_insert`): solo sobre comandas abiertas, nunca más de lo que falta, se
+    asocian a la caja abierta del local; el efectivo exige caja abierta.
+  - Descuentos (`orders.discount_amount`): solo owner/manager/cashier (chequeo en `orders_before_update`).
+  - Al cerrar una comanda, los ítems pendientes pasan a `sent` (venta de mostrador cobrada antes).
 - **Pagos se anulan** con `voided_at`, nunca se borran.
 - **Roles:** owner, manager, cashier, waiter, kitchen. Matriz en `supabase/migrations/20261019120300_rls_and_rpc.sql`.
   Helpers de RLS en schema `private` (`private.is_member`, `private.has_role`), fuera de la API.
@@ -54,9 +58,11 @@ Texto de interfaz: oraciones cortas, verbos concretos, sin disculpas en errores.
 
 ## Pantallas (src/pages)
 
-Salón (mesas en vivo, abrir mesa → comanda) · Comandas (abiertas + venta de mostrador) · Comanda (carta +
-pedido, envío a cocina, cancelar ítems) · Carta y Modificadores (owner/manager, desde Más) · Más · Cocina y
-Caja todavía son placeholders (`Upcoming.tsx`).
+Salón (mesas en vivo; mostaza = algo sin enviar o listo para servir) · Comandas (abiertas + venta de
+mostrador) · Comanda (carta + pedido, envío a cocina, cancelar, marcar entregado, cobrar con
+`components/PaySheet.tsx`) · Cocina (KDS oscuro, tickets por comanda/estación, semáforo 10/20 min, aviso
+sonoro con Web Audio) · Caja (apertura, ingresos/retiros, resumen por medio de pago, cierre con arqueo;
+`lib/cash.ts` replica el cálculo de `close_cash_session`) · Carta y Modificadores (owner/manager) · Más.
 
 ## Pendientes conocidos
 
@@ -64,5 +70,7 @@ Caja todavía son placeholders (`Upcoming.tsx`).
 - Modo offline real: hoy la PWA cachea la app, pero los datos requieren conexión. Plan: cola local
   (IndexedDB) de operaciones con uuid generados en el dispositivo + sincronización.
 - Validar mínimos/máximos de modificadores también en el servidor.
+- Caja: hoy se usa la primera caja activa del local; múltiples cajas y arqueo ciego quedan para más adelante.
+- Impresión de comandas y precuentas (ESC/POS) todavía no está.
 - Deploy público (Cloudflare Pages o similar) y dominio.
 - Confirmación de email: Supabase usa el SMTP por defecto (límite bajo); configurar SMTP propio antes de pilotos.

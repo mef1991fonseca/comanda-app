@@ -1,18 +1,21 @@
 import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase, errorMessage } from '../lib/supabase'
 import { useCurrentRestaurant } from '../lib/restaurant'
 import { useMenu, validateSelection, type ProductWithGroups } from '../lib/menu'
 import { itemModifiers, itemStatusLabel, modifierIds, orderTitle, useOrder, type OrderItem } from '../lib/orders'
 import { formatMoney } from '../lib/format'
 import { Sheet } from '../components/Sheet'
+import { PaySheet } from '../components/PaySheet'
 
 const FAVORITES = '__favoritos__'
 
 export function Comanda() {
   const { orderId = '' } = useParams()
   const { restaurant, role } = useCurrentRestaurant()
-  const { order, items, tableName, loading, error, reload } = useOrder(orderId)
+  const { order, items, payments, tableName, loading, error, reload } = useOrder(orderId)
+  const navigate = useNavigate()
+  const [paying, setPaying] = useState(false)
   const { menu, loading: menuLoading } = useMenu(restaurant.id)
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState<string | null>(null)
@@ -116,6 +119,14 @@ export function Comanda() {
         )
       }
       onSend={sendToKitchen}
+      onPay={
+        canSell && isOpen && items.some((i) => i.status !== 'cancelled')
+          ? () => {
+              setTicketOpen(false)
+              setPaying(true)
+            }
+          : undefined
+      }
     />
   )
 
@@ -216,6 +227,18 @@ export function Comanda() {
         </Sheet>
       )}
 
+      {paying && (
+        <PaySheet
+          order={order}
+          payments={payments}
+          role={role}
+          pendingItems={pendingUnits}
+          onClose={() => setPaying(false)}
+          onChanged={reload}
+          onClosedOrder={() => navigate(order.type === 'dine_in' ? '/salon' : '/comandas')}
+        />
+      )}
+
       {choosing && (
         <ModifierSheet
           product={choosing}
@@ -231,8 +254,13 @@ export function Comanda() {
         <ItemSheet
           item={items.find((i) => i.id === editingItem.id) ?? editingItem}
           editable={editable}
+          canDeliver={canSell}
           busy={busy}
           onClose={() => setEditingItem(null)}
+          onDeliver={async () => {
+            if (await act(() => supabase.from('order_items').update({ status: 'delivered' }).eq('id', editingItem.id)))
+              setEditingItem(null)
+          }}
           onSaveNote={async (notes) => {
             if (await act(() => supabase.from('order_items').update({ notes }).eq('id', editingItem.id))) setEditingItem(null)
           }}
@@ -259,6 +287,7 @@ function Ticket({
   onEdit,
   onQuantity,
   onSend,
+  onPay,
 }: {
   pending: OrderItem[]
   sent: OrderItem[]
@@ -269,6 +298,7 @@ function Ticket({
   onEdit: (i: OrderItem) => void
   onQuantity: (i: OrderItem, q: number) => void
   onSend: () => void
+  onPay?: () => void
 }) {
   return (
     <div className="ticket order-ticket">
@@ -319,6 +349,11 @@ function Ticket({
       {editable && (
         <button className="btn btn-primary btn-block" onClick={onSend} disabled={busy || pending.length === 0}>
           {pending.length ? `Enviar a cocina · ${formatMoney(pendingTotal)}` : 'Nada por enviar'}
+        </button>
+      )}
+      {onPay && (
+        <button className={`btn btn-block ${pending.length ? 'btn-quiet' : 'btn-primary'}`} onClick={onPay} disabled={busy}>
+          Cobrar · {formatMoney(total)}
         </button>
       )}
     </div>
@@ -430,16 +465,20 @@ function ModifierSheet({
 function ItemSheet({
   item,
   editable,
+  canDeliver,
   busy,
   onClose,
+  onDeliver,
   onSaveNote,
   onRemove,
   onCancel,
 }: {
   item: OrderItem
   editable: boolean
+  canDeliver: boolean
   busy: boolean
   onClose: () => void
+  onDeliver: () => void
   onSaveNote: (notes: string | null) => void
   onRemove: () => void
   onCancel: () => void
@@ -479,7 +518,12 @@ function ItemSheet({
         <>
           {item.notes && <p>Nota: {item.notes}</p>}
           <div className="sheet-actions">
-            {editable && item.status !== 'cancelled' && (
+            {canDeliver && item.status === 'ready' && (
+              <button className="btn btn-primary" onClick={onDeliver} disabled={busy}>
+                Marcar entregado
+              </button>
+            )}
+            {editable && item.status !== 'cancelled' && item.status !== 'delivered' && (
               <button className="btn btn-danger" onClick={onCancel} disabled={busy}>
                 Cancelar ítem y avisar a cocina
               </button>

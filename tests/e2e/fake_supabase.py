@@ -16,7 +16,7 @@ EMAIL, PASSWORD, NAME = "qa-sprint0@comanda.test", "Prueba-2026!", "QA Sprint 0"
 TABLES = [
     "restaurants", "restaurant_members", "profiles", "dining_areas", "tables", "stations",
     "categories", "products", "modifier_groups", "modifiers", "product_modifier_groups",
-    "orders", "order_items", "payments",
+    "orders", "order_items", "payments", "payment_methods", "registers", "cash_sessions", "cash_movements",
 ]
 
 DEFAULTS = {
@@ -29,6 +29,10 @@ DEFAULTS = {
     "orders": {"type": "dine_in", "status": "open", "table_id": None, "customer_name": None, "guests": None,
                "notes": None, "subtotal": 0, "discount_amount": 0, "total": 0, "paid_total": 0,
                "cash_session_id": None, "closed_at": None, "cancelled_reason": None},
+    "payments": {"tip": 0, "cash_session_id": None, "reference": None, "voided_at": None, "voided_by": None},
+    "cash_sessions": {"opening_amount": 0, "closed_at": None, "closed_by": None, "expected_cash": None,
+                      "counted_cash": None, "notes": None},
+    "cash_movements": {"reason": None},
     "order_items": {"status": "pending", "modifiers": [], "modifiers_total": 0, "quantity": 1, "notes": None,
                     "guest_number": None, "sent_at": None, "ready_at": None, "station_id": None},
 }
@@ -87,6 +91,12 @@ class FakeSupabase:
             elif op == "is" and val == "null":
                 if cur is not None:
                     return False
+            elif op == "not" and val == "is.null":
+                if cur is None:
+                    return False
+            elif op == "gte":
+                if cur is None or str(cur) < val:
+                    return False
             elif op == "in":
                 if str(cur) not in [x.strip('"') for x in val.strip("()").split(",")]:
                     return False
@@ -139,6 +149,42 @@ class FakeSupabase:
         if order and order["status"] != "open":
             raise BusinessError("La comanda ya no está abierta")
 
+    def _recalc_paid(self, order_id):
+        order = self._find("orders", order_id)
+        if order:
+            order["paid_total"] = sum(p["amount"] for p in self.db["payments"]
+                                      if p["order_id"] == order_id and not p.get("voided_at"))
+
+    def _open_session(self, restaurant_id):
+        return next((s for s in self.db["cash_sessions"]
+                     if s["restaurant_id"] == restaurant_id and not s.get("closed_at")), None)
+
+    def _before_payment(self, row):
+        order = self._find("orders", row["order_id"])
+        if not order or order["status"] != "open":
+            raise BusinessError("Solo se puede cobrar una comanda abierta")
+        if row["amount"] > order["total"] - order["paid_total"] + 0.009:
+            raise BusinessError("El pago supera lo que falta cobrar")
+        kind = (self._find("payment_methods", row["payment_method_id"]) or {}).get("kind")
+        if not row.get("cash_session_id"):
+            sess = self._open_session(row["restaurant_id"])
+            row["cash_session_id"] = sess["id"] if sess else None
+        if kind == "cash" and not row["cash_session_id"]:
+            raise BusinessError("Abrí la caja para cobrar en efectivo")
+
+    def _close_cash(self, args):
+        sess = self._find("cash_sessions", args["p_session"])
+        if not sess or sess.get("closed_at"):
+            raise BusinessError("La caja ya está cerrada")
+        cash_ids = {m["id"] for m in self.db["payment_methods"] if m["kind"] == "cash"}
+        sales = sum(p["amount"] + p["tip"] for p in self.db["payments"]
+                    if p.get("cash_session_id") == sess["id"] and not p.get("voided_at") and p["payment_method_id"] in cash_ids)
+        moves = sum(m["amount"] if m["kind"] == "in" else -m["amount"] for m in self.db["cash_movements"]
+                    if m["cash_session_id"] == sess["id"])
+        sess.update({"closed_at": now_iso(), "closed_by": USER_ID, "expected_cash": sess["opening_amount"] + sales + moves,
+                     "counted_cash": args["p_counted"], "notes": args.get("p_notes")})
+        return sess
+
     def _before_insert(self, table, row):
         row.setdefault("id", str(uuid.uuid4()))
         row.setdefault("created_at", now_iso())
@@ -149,6 +195,12 @@ class FakeSupabase:
             self.counter += 1
             row["number"] = self.counter
             row.setdefault("opened_at", now_iso(offset_min=5))
+        if table == "cash_sessions":
+            row.setdefault("opened_at", now_iso())
+            if any(x["register_id"] == row["register_id"] and not x.get("closed_at") for x in self.db["cash_sessions"]):
+                raise BusinessError("Ya hay una caja abierta")
+        if table == "payments":
+            self._before_payment(row)
         if table == "order_items":
             self._check_open(row["order_id"])
             self._enrich_item(row, True)
@@ -159,21 +211,35 @@ class FakeSupabase:
     def _after_write(self, table, row):
         if table == "order_items":
             self._recalc_order(row["order_id"])
+        if table == "payments":
+            self._recalc_paid(row["order_id"])
 
     def _apply_patch(self, table, row, patch):
         if table == "order_items":
-            self._check_open(row["order_id"]) if any(k in patch for k in ("quantity", "modifiers", "product_id")) else None
+            if any(k in patch for k in ("quantity", "modifiers", "product_id")):
+                self._check_open(row["order_id"])
             row.update(patch)
             if "modifiers" in patch:
                 self._enrich_item(row, False)
             if row["status"] in ("sent", "preparing", "ready", "delivered") and not row.get("sent_at"):
                 row["sent_at"] = now_iso()
+            if row["status"] in ("ready", "delivered") and not row.get("ready_at"):
+                row["ready_at"] = now_iso()
             self._item_line(row)
         elif table == "orders":
             if patch.get("status") == "cancelled" and row["paid_total"] > 0:
                 raise BusinessError("No se puede anular la comanda: tiene pagos registrados")
+            closing = patch.get("status") == "closed" and row["status"] != "closed"
             row.update(patch)
             row["total"] = max(row["subtotal"] - row["discount_amount"], 0)
+            if closing:
+                if row["paid_total"] < row["total"]:
+                    row["status"] = "open"
+                    raise BusinessError("La comanda no está paga")
+                row["closed_at"] = now_iso()
+                for i in self.db["order_items"]:
+                    if i["order_id"] == row["id"] and i["status"] == "pending":
+                        i["status"], i["sent_at"] = "sent", now_iso()
         else:
             row.update(patch)
         row["updated_at"] = now_iso()
@@ -189,6 +255,12 @@ class FakeSupabase:
                                               "display_name": None, "active": True})
         for i, name in enumerate(["Cocina", "Barra"]):
             self.db["stations"].append({"id": str(uuid.uuid4()), "restaurant_id": rid, "name": name, "sort_order": i, "active": True})
+        self.db["registers"].append({"id": str(uuid.uuid4()), "restaurant_id": rid, "name": "Caja principal",
+                                     "active": True, "created_at": now_iso()})
+        for i, (name, kind) in enumerate([("Efectivo", "cash"), ("Débito", "debit"), ("Crédito", "credit"),
+                                          ("Transferencia", "transfer"), ("Mercado Pago", "mercadopago")]):
+            self.db["payment_methods"].append({"id": str(uuid.uuid4()), "restaurant_id": rid, "name": name, "kind": kind,
+                                               "sort_order": i, "active": True})
         area = str(uuid.uuid4())
         self.db["dining_areas"].append({"id": area, "restaurant_id": rid, "name": "Salón", "sort_order": 0, "active": True})
         for i in range(1, int(args.get("p_tables", 10)) + 1):
@@ -233,6 +305,11 @@ class FakeSupabase:
 
         if path == "/rest/v1/rpc/create_restaurant":
             return reply(200, self._create_restaurant(json.loads(req.post_data or "{}")))
+        if path == "/rest/v1/rpc/close_cash_session":
+            try:
+                return reply(200, self._close_cash(json.loads(req.post_data or "{}")))
+            except BusinessError as e:
+                return reply(400, {"code": "P0001", "message": str(e)})
 
         if not path.startswith("/rest/v1/"):
             return reply(404, {"message": f"sin simular: {method} {path}"})
@@ -244,6 +321,11 @@ class FakeSupabase:
         filters = self._filters(qs)
 
         try:
+            if method == "HEAD":
+                n = len([r for r in rows if self._match(r, filters)])
+                return route.fulfill(status=200, headers={"access-control-allow-origin": "*",
+                                                          "access-control-expose-headers": "content-range",
+                                                          "content-range": f"0-{max(n - 1, 0)}/{n}"}, body="")
             if method == "GET":
                 result = [r for r in rows if self._match(r, filters)]
                 if table == "restaurant_members" and "restaurant:restaurants" in qs.get("select", [""])[0]:

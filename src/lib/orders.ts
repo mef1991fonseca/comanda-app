@@ -4,6 +4,7 @@ import type { Enums, Json, Tables } from './database.types'
 
 export type Order = Tables<'orders'>
 export type OrderItem = Tables<'order_items'>
+export type Payment = Tables<'payments'>
 export type ItemStatus = Enums<'item_status'>
 export type AppliedModifier = { id: string; name: string; price_delta: number }
 
@@ -43,20 +44,23 @@ export function useOrder(orderId: string) {
   const [order, setOrder] = useState<Order | null>(null)
   const [items, setItems] = useState<OrderItem[]>([])
   const [tableName, setTableName] = useState<string | null>(null)
+  const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
-    const [o, i] = await Promise.all([
+    const [o, i, p] = await Promise.all([
       supabase.from('orders').select('*').eq('id', orderId).maybeSingle(),
       supabase.from('order_items').select('*').eq('order_id', orderId).order('created_at'),
+      supabase.from('payments').select('*').eq('order_id', orderId).order('created_at'),
     ])
-    if (o.error || i.error) {
-      setError(errorMessage(o.error ?? i.error))
+    if (o.error || i.error || p.error) {
+      setError(errorMessage(o.error ?? i.error ?? p.error))
     } else {
       setError(null)
       setOrder(o.data)
       setItems(i.data)
+      setPayments(p.data)
       if (o.data?.table_id) {
         const t = await supabase.from('tables').select('name').eq('id', o.data.table_id).maybeSingle()
         setTableName(t.data?.name ?? null)
@@ -81,5 +85,5 @@ export function useOrder(orderId: string) {
     }
   }, [orderId, reload])
 
-  return { order, items, tableName, loading, error, reload }
+  return { order, items, payments, tableName, loading, error, reload }
 }

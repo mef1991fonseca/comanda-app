@@ -5,12 +5,13 @@ import { AppShell, homeFor } from './components/AppShell'
 import { Login } from './pages/Login'
 import { Onboarding } from './pages/Onboarding'
 import { Salon } from './pages/Salon'
-import { Upcoming } from './pages/Upcoming'
 import { Comandas } from './pages/Comandas'
 import { Comanda } from './pages/Comanda'
 import { Carta } from './pages/Carta'
 import { Modificadores } from './pages/Modificadores'
 import { Mas } from './pages/Mas'
+import { Cocina } from './pages/Cocina'
+import { Caja } from './pages/Caja'
 
 export function App() {
   const { session, loading: authLoading } = useAuth()
@@ -41,8 +42,8 @@ export function App() {
             <Route path="/carta/modificadores" element={<Modificadores />} />
           </>
         )}
-        <Route path="/cocina" element={<Upcoming section="cocina" />} />
-        <Route path="/caja" element={<Upcoming section="caja" />} />
+        <Route path="/cocina" element={<Cocina />} />
+        <Route path="/caja" element={<Caja />} />
         <Route path="/mas" element={<Mas />} />
       </Route>
       <Route path="*" element={<Navigate to={homeFor(current.role)} replace />} />
