@@ -1,9 +1,22 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { supabase, errorMessage } from '../lib/supabase'
+import { errorMessage } from '../lib/supabase'
 import { useCurrentRestaurant } from '../lib/restaurant'
 import { useMenu, validateSelection, type ProductWithGroups } from '../lib/menu'
-import { itemModifiers, itemStatusLabel, modifierIds, orderTitle, useOrder, type OrderItem } from '../lib/orders'
+import {
+  addItem,
+  itemModifiers,
+  itemStatusLabel,
+  orderNumberLabel,
+  orderTitle,
+  removeItem,
+  sendPending,
+  setItemQuantity,
+  updateItem,
+  useOrder,
+  type OrderItem,
+} from '../lib/orders'
+import { useSync } from '../lib/useSync'
 import { formatMoney } from '../lib/format'
 import { Sheet } from '../components/Sheet'
 import { PaySheet } from '../components/PaySheet'
@@ -24,6 +37,7 @@ export function Comanda() {
   const [ticketOpen, setTicketOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const { online } = useSync()
 
   const canSell = ['owner', 'manager', 'cashier', 'waiter'].includes(role)
   const isOpen = order?.status === 'open'
@@ -56,23 +70,28 @@ export function Comanda() {
     return !error
   }
 
+  const where = order ? orderTitle(order, tableName) : 'Comanda'
+
   async function addProduct(p: ProductWithGroups, mods: string[] = [], quantity = 1, notes: string | null = null) {
     // Mismo producto sin opciones ni nota y todavía sin enviar: se suma la cantidad
     const same = mods.length === 0 && !notes
       ? pending.find((i) => i.product_id === p.id && itemModifiers(i).length === 0 && !i.notes)
       : undefined
+    const allMods = p.groups.flatMap((g) => g.modifiers)
     return act(() =>
       same
-        ? supabase.from('order_items').update({ quantity: same.quantity + quantity }).eq('id', same.id)
-        : supabase.from('order_items').insert({
-            restaurant_id: restaurant.id,
-            order_id: orderId,
-            product_id: p.id,
-            name: p.name,
-            unit_price: p.price,
+        ? setItemQuantity(same, same.quantity + quantity, `${where}: ${p.name} × ${same.quantity + quantity}`)
+        : addItem({
+            restaurantId: restaurant.id,
+            orderId,
+            product: p,
+            modifiers: mods
+              .map((id) => allMods.find((m) => m.id === id))
+              .filter((m): m is NonNullable<typeof m> => !!m)
+              .map((m) => ({ id: m.id, name: m.name, price_delta: m.price_delta })),
             quantity,
             notes,
-            modifiers: modifierIds(mods),
+            label: `${where}: agregar ${p.name}`,
           }),
     )
   }
@@ -84,9 +103,7 @@ export function Comanda() {
   }
 
   async function sendToKitchen() {
-    const ok = await act(() =>
-      supabase.from('order_items').update({ status: 'sent' }).eq('order_id', orderId).eq('status', 'pending'),
-    )
+    const ok = await act(() => sendPending(orderId, `${where}: enviar a cocina`))
     if (ok) setTicketOpen(false)
   }
 
@@ -111,14 +128,9 @@ export function Comanda() {
       editable={editable}
       busy={busy}
       onEdit={setEditingItem}
-      onQuantity={(item, q) =>
-        void act(() =>
-          q <= 0
-            ? supabase.from('order_items').delete().eq('id', item.id)
-            : supabase.from('order_items').update({ quantity: q }).eq('id', item.id),
-        )
-      }
+      onQuantity={(item, q) => void act(() => setItemQuantity(item, q, `${where}: ${item.name} × ${q}`))}
       onSend={sendToKitchen}
+      offline={!online}
       onPay={
         canSell && isOpen && items.some((i) => i.status !== 'cancelled')
           ? () => {
@@ -139,7 +151,7 @@ export function Comanda() {
         <div>
           <h1>{orderTitle(order, tableName)}</h1>
           <span className="muted">
-            Comanda #{order.number}
+            {orderNumberLabel(order)}
             {!isOpen && ` · ${order.status === 'closed' ? 'cerrada' : 'anulada'}`}
           </span>
         </div>
@@ -227,7 +239,7 @@ export function Comanda() {
         </Sheet>
       )}
 
-      {paying && (
+      {paying && online && (
         <PaySheet
           order={order}
           payments={payments}
@@ -258,17 +270,17 @@ export function Comanda() {
           busy={busy}
           onClose={() => setEditingItem(null)}
           onDeliver={async () => {
-            if (await act(() => supabase.from('order_items').update({ status: 'delivered' }).eq('id', editingItem.id)))
+            if (await act(() => updateItem(editingItem, { status: 'delivered' }, `${where}: entregar ${editingItem.name}`)))
               setEditingItem(null)
           }}
           onSaveNote={async (notes) => {
-            if (await act(() => supabase.from('order_items').update({ notes }).eq('id', editingItem.id))) setEditingItem(null)
+            if (await act(() => updateItem(editingItem, { notes }, `${where}: nota de ${editingItem.name}`))) setEditingItem(null)
           }}
           onRemove={async () => {
-            if (await act(() => supabase.from('order_items').delete().eq('id', editingItem.id))) setEditingItem(null)
+            if (await act(() => removeItem(editingItem, `${where}: quitar ${editingItem.name}`))) setEditingItem(null)
           }}
           onCancel={async () => {
-            if (await act(() => supabase.from('order_items').update({ status: 'cancelled' }).eq('id', editingItem.id)))
+            if (await act(() => updateItem(editingItem, { status: 'cancelled' }, `${where}: cancelar ${editingItem.name}`)))
               setEditingItem(null)
           }}
         />
@@ -288,6 +300,7 @@ function Ticket({
   onQuantity,
   onSend,
   onPay,
+  offline,
 }: {
   pending: OrderItem[]
   sent: OrderItem[]
@@ -299,6 +312,7 @@ function Ticket({
   onQuantity: (i: OrderItem, q: number) => void
   onSend: () => void
   onPay?: () => void
+  offline: boolean
 }) {
   return (
     <div className="ticket order-ticket">
@@ -351,11 +365,14 @@ function Ticket({
           {pending.length ? `Enviar a cocina · ${formatMoney(pendingTotal)}` : 'Nada por enviar'}
         </button>
       )}
-      {onPay && (
-        <button className={`btn btn-block ${pending.length ? 'btn-quiet' : 'btn-primary'}`} onClick={onPay} disabled={busy}>
-          Cobrar · {formatMoney(total)}
-        </button>
-      )}
+      {onPay &&
+        (offline ? (
+          <p className="hint muted">Para cobrar hace falta conexión. El pedido se sigue cargando y enviando igual.</p>
+        ) : (
+          <button className={`btn btn-block ${pending.length ? 'btn-quiet' : 'btn-primary'}`} onClick={onPay} disabled={busy}>
+            Cobrar · {formatMoney(total)}
+          </button>
+        ))}
     </div>
   )
 }

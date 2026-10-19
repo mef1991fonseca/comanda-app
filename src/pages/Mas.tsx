@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase, errorMessage } from '../lib/supabase'
+import { clearCache } from '../lib/offline'
+import { useSync } from '../lib/useSync'
 import { useAuth } from '../lib/auth'
 import { useCurrentRestaurant, useRestaurant } from '../lib/restaurant'
 import { roleLabel } from '../lib/format'
@@ -33,7 +35,15 @@ export function Mas() {
     void load()
   }, [restaurant.id])
 
+  const { pending } = useSync()
+
   async function signOut() {
+    if (
+      pending > 0 &&
+      !window.confirm(`Hay ${pending} cambios sin sincronizar en este dispositivo. Si cerrás sesión se envían cuando vuelvas a entrar. ¿Cerrar sesión igual?`)
+    )
+      return
+    await clearCache()
     await supabase.auth.signOut()
   }
 

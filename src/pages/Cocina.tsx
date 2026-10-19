@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase, errorMessage } from '../lib/supabase'
 import { useCurrentRestaurant } from '../lib/restaurant'
 import { formatElapsed, minutesSince } from '../lib/format'
-import { itemModifiers, orderTitle, type ItemStatus, type Order, type OrderItem } from '../lib/orders'
+import { itemModifiers, orderTitle, setItemsStatus, useSyncedReload, type ItemStatus, type Order, type OrderItem } from '../lib/orders'
+import { cachedQuery, type Filter } from '../lib/offline'
 import type { Tables } from '../lib/database.types'
 
 type Station = Tables<'stations'>
@@ -46,26 +47,40 @@ export function Cocina() {
 
   const load = useCallback(async () => {
     const since = new Date(Date.now() - RECENT_MIN * 60_000).toISOString()
+    // Sin filtro de estado en la superposición: un "listo" marcado sin conexión mueve el ítem
+    // de "activos" a "recientes" y la clasificación se hace acá abajo.
+    const byRestaurant: Filter[] = [{ col: 'restaurant_id', op: 'eq', value: rid }]
     const [active, recent] = await Promise.all([
-      supabase.from('order_items').select('*').eq('restaurant_id', rid).in('status', ['sent', 'preparing']),
-      supabase
-        .from('order_items')
-        .select('*')
-        .eq('restaurant_id', rid)
-        .in('status', ['ready', 'cancelled'])
-        .not('sent_at', 'is', null)
-        .gte('updated_at', since),
+      cachedQuery<OrderItem>(`cocina:${rid}:active`, 'order_items', byRestaurant, () =>
+        supabase.from('order_items').select('*').eq('restaurant_id', rid).in('status', ['sent', 'preparing']),
+      ),
+      cachedQuery<OrderItem>(`cocina:${rid}:recent`, 'order_items', byRestaurant, () =>
+        supabase
+          .from('order_items')
+          .select('*')
+          .eq('restaurant_id', rid)
+          .in('status', ['ready', 'cancelled'])
+          .not('sent_at', 'is', null)
+          .gte('updated_at', since),
+      ),
     ])
     if (active.error || recent.error) {
       setError(errorMessage(active.error ?? recent.error))
       setLoading(false)
       return
     }
-    const all = [...active.data, ...recent.data]
+    const merged = new Map<string, OrderItem>()
+    for (const i of [...recent.data, ...active.data]) merged.set(i.id, i)
+    const all = [...merged.values()].filter(
+      (i) =>
+        i.status === 'sent' ||
+        i.status === 'preparing' ||
+        ((i.status === 'ready' || i.status === 'cancelled') && i.sent_at !== null && i.updated_at >= since),
+    )
     const orderIds = [...new Set(all.map((i) => i.order_id))]
-    const o = orderIds.length
-      ? await supabase.from('orders').select('*').in('id', orderIds)
-      : { data: [] as Order[], error: null }
+    const o = await cachedQuery<Order>(`cocina:${rid}:orders`, 'orders', [{ col: 'id', op: 'in', value: orderIds }], () =>
+      orderIds.length ? supabase.from('orders').select('*').in('id', orderIds) : Promise.resolve({ data: [] as Order[], error: null }),
+    )
     if (o.error) setError(errorMessage(o.error))
     else {
       setOrders(new Map(o.data.map((x) => [x.id, x])))
@@ -74,7 +89,7 @@ export function Cocina() {
     }
 
     // Aviso sonoro si entró algo nuevo para preparar
-    const sentIds = new Set(active.data.filter((i) => i.status === 'sent').map((i) => i.id))
+    const sentIds = new Set(all.filter((i) => i.status === 'sent').map((i) => i.id))
     if (known.current && audio.current) {
       for (const id of sentIds) {
         if (!known.current.has(id)) {
@@ -87,11 +102,17 @@ export function Cocina() {
     setLoading(false)
   }, [rid])
 
+  useSyncedReload(load)
+
   useEffect(() => {
     async function init() {
       const [s, t] = await Promise.all([
-        supabase.from('stations').select('*').eq('restaurant_id', rid).eq('active', true).order('sort_order'),
-        supabase.from('tables').select('id, name').eq('restaurant_id', rid),
+        cachedQuery<Station>(`cocina:${rid}:stations`, 'stations', [], () =>
+          supabase.from('stations').select('*').eq('restaurant_id', rid).eq('active', true).order('sort_order'),
+        ),
+        cachedQuery<{ id: string; name: string }>(`cocina:${rid}:tables`, 'tables', [], () =>
+          supabase.from('tables').select('id, name').eq('restaurant_id', rid),
+        ),
       ])
       if (s.data) setStations(s.data)
       if (t.data) setTables(new Map(t.data.map((x) => [x.id, x.name])))
@@ -146,7 +167,8 @@ export function Cocina() {
     if (!ids.length) return
     // Actualización optimista: la cocina no espera a la red para ver el cambio
     setItems((cur) => cur.map((i) => (ids.includes(i.id) ? { ...i, status } : i)))
-    const { error } = await supabase.from('order_items').update({ status }).in('id', ids)
+    const label = status === 'ready' ? 'Cocina: marcar listo' : status === 'preparing' ? 'Cocina: empezar' : 'Cocina: cambiar estado'
+    const { error } = await setItemsStatus(ids, status, label)
     if (error) setError(errorMessage(error))
     void load()
   }

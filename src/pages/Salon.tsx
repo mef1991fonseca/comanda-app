@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, errorMessage } from '../lib/supabase'
+import { cachedQuery } from '../lib/offline'
+import { createOrder, orderNumberLabel, updateOrder, useSyncedReload } from '../lib/orders'
 import { useCurrentRestaurant } from '../lib/restaurant'
 import { formatElapsed, formatMoney, minutesSince } from '../lib/format'
 import type { Tables } from '../lib/database.types'
@@ -38,8 +40,25 @@ export function Salon() {
 
   const loadOrders = useCallback(async () => {
     const [o, p] = await Promise.all([
-      supabase.from('orders').select('*').eq('restaurant_id', rid).eq('status', 'open').not('table_id', 'is', null),
-      supabase.from('order_items').select('order_id, status').eq('restaurant_id', rid).in('status', ['pending', 'ready']),
+      cachedQuery<Order>(
+        `salon:${rid}:orders`,
+        'orders',
+        [
+          { col: 'restaurant_id', op: 'eq', value: rid },
+          { col: 'status', op: 'eq', value: 'open' },
+          { col: 'table_id', op: 'notNull' },
+        ],
+        () => supabase.from('orders').select('*').eq('restaurant_id', rid).eq('status', 'open').not('table_id', 'is', null),
+      ),
+      cachedQuery<{ order_id: string; status: string }>(
+        `salon:${rid}:flags`,
+        'order_items',
+        [
+          { col: 'restaurant_id', op: 'eq', value: rid },
+          { col: 'status', op: 'in', value: ['pending', 'ready'] },
+        ],
+        () => supabase.from('order_items').select('id, order_id, status, restaurant_id').eq('restaurant_id', rid).in('status', ['pending', 'ready']),
+      ),
     ])
     if (o.error || p.error) setError(errorMessage(o.error ?? p.error))
     else {
@@ -54,8 +73,12 @@ export function Salon() {
     async function load() {
       setLoading(true)
       const [a, t] = await Promise.all([
-        supabase.from('dining_areas').select('*').eq('restaurant_id', rid).eq('active', true).order('sort_order'),
-        supabase.from('tables').select('*').eq('restaurant_id', rid).eq('active', true).order('sort_order'),
+        cachedQuery<Area>(`salon:${rid}:areas`, 'dining_areas', [], () =>
+          supabase.from('dining_areas').select('*').eq('restaurant_id', rid).eq('active', true).order('sort_order'),
+        ),
+        cachedQuery<Table>(`salon:${rid}:tables`, 'tables', [], () =>
+          supabase.from('tables').select('*').eq('restaurant_id', rid).eq('active', true).order('sort_order'),
+        ),
       ])
       if (cancelled) return
       if (a.error || t.error) setError(errorMessage(a.error ?? t.error))
@@ -85,6 +108,8 @@ export function Salon() {
       void supabase.removeChannel(channel)
     }
   }, [rid, loadOrders])
+
+  useSyncedReload(loadOrders)
 
   const orderByTable = useMemo(() => {
     const map = new Map<string, Order>()
@@ -195,10 +220,12 @@ function TableSheet({
   async function openTable() {
     setBusy(true)
     setError(null)
-    const id = crypto.randomUUID()
-    const { error } = await supabase
-      .from('orders')
-      .insert({ id, restaurant_id: restaurantId, type: 'dine_in', table_id: table.id })
+    const { id, error } = await createOrder({
+      restaurantId,
+      type: 'dine_in',
+      tableId: table.id,
+      label: `Mesa ${table.name}: abrir`,
+    })
     if (error) {
       setError(errorMessage(error))
       setBusy(false)
@@ -211,10 +238,11 @@ function TableSheet({
     if (!order) return
     setBusy(true)
     setError(null)
-    const { error } = await supabase
-      .from('orders')
-      .update({ status: 'cancelled', cancelled_reason: 'Mesa liberada sin consumo' })
-      .eq('id', order.id)
+    const { error } = await updateOrder(
+      order.id,
+      { status: 'cancelled', cancelled_reason: 'Mesa liberada sin consumo' },
+      `Mesa ${table.name}: liberar`,
+    )
     if (error) {
       setError(errorMessage(error))
       setBusy(false)
@@ -235,7 +263,7 @@ function TableSheet({
       {order ? (
         <div className="ticket">
           <div className="ticket-row">
-            <span>Comanda #{order.number}</span>
+            <span>{orderNumberLabel(order)}</span>
             <span className="muted">abierta hace {formatElapsed(minutesSince(order.opened_at, now))}</span>
           </div>
           <div className="ticket-row">

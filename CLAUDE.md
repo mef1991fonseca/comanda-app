@@ -39,6 +39,16 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
 - **Alta de local:** RPC `create_restaurant(nombre, mesas)` crea el local con dueño, estaciones Cocina/Barra,
   Caja principal, medios de pago y un salón con N mesas.
 - **Realtime** publicado en `orders`, `order_items`, `payments` (respeta RLS).
+- **Modo sin conexión** (`src/lib/offline.ts`, IndexedDB con idb-keyval):
+  - Lecturas con `cachedQuery(clave, tabla, filtros, consulta)`: con red consulta y guarda; sin red devuelve
+    la caché + los cambios pendientes superpuestos (`overlay`, incluye deltas de totales de comanda).
+  - Escrituras con `write()` (vía los helpers de `lib/orders.ts`): si hay red y la cola está vacía, van
+    directo; si no, a la cola (`outbox`) con uuid del dispositivo. Se envía en orden al volver la red y
+    cada 20 s; un 23505 (ya existía) cuenta como aplicado; un rechazo de negocio va a `outbox-failed` y
+    `SyncBar` lo muestra con su motivo para descartarlo.
+  - Alcance sin red: abrir mesas y ventas de mostrador, cargar/cancelar/enviar ítems, estados de cocina.
+    Cobros, caja, stock y administración piden conexión. El número de comanda llega al sincronizar.
+  - Al cerrar sesión se borra la caché (`clearCache`), con confirmación si hay cambios pendientes.
 
 ## Diseño
 
@@ -76,8 +86,7 @@ Salón, Comandas, Caja, Más; Cocina para ellos está en Más.
 ## Pendientes conocidos
 
 - Invitar miembros al equipo (necesita RPC que busque usuario por email o invitación por link).
-- Modo offline real: hoy la PWA cachea la app, pero los datos requieren conexión. Plan: cola local
-  (IndexedDB) de operaciones con uuid generados en el dispositivo + sincronización.
+- Sin conexión no se puede cobrar (los pagos dependen de la caja abierta y del saldo en el servidor).
 - Validar mínimos/máximos de modificadores también en el servidor.
 - Caja: hoy se usa la primera caja activa del local; múltiples cajas y arqueo ciego quedan para más adelante.
 - Impresión de comandas y precuentas (ESC/POS) todavía no está.

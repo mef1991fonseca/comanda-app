@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { supabase, errorMessage } from '../lib/supabase'
 import { useCurrentRestaurant } from '../lib/restaurant'
 import { formatElapsed, formatMoney, minutesSince } from '../lib/format'
-import { orderTitle, type Order } from '../lib/orders'
+import { createOrder, orderTitle, useSyncedReload, type Order } from '../lib/orders'
+import { cachedQuery } from '../lib/offline'
 import type { Enums } from '../lib/database.types'
 import { TopBar } from '../components/AppShell'
 import { Sheet } from '../components/Sheet'
@@ -22,9 +23,27 @@ export function Comandas() {
 
   const load = useCallback(async () => {
     const [o, t, i] = await Promise.all([
-      supabase.from('orders').select('*').eq('restaurant_id', rid).eq('status', 'open').order('opened_at'),
-      supabase.from('tables').select('id, name').eq('restaurant_id', rid),
-      supabase.from('order_items').select('order_id, status').eq('restaurant_id', rid).in('status', ['pending', 'ready']),
+      cachedQuery<Order>(
+        `comandas:${rid}:orders`,
+        'orders',
+        [
+          { col: 'restaurant_id', op: 'eq', value: rid },
+          { col: 'status', op: 'eq', value: 'open' },
+        ],
+        () => supabase.from('orders').select('*').eq('restaurant_id', rid).eq('status', 'open').order('opened_at'),
+      ),
+      cachedQuery<{ id: string; name: string }>(`comandas:${rid}:tables`, 'tables', [], () =>
+        supabase.from('tables').select('id, name').eq('restaurant_id', rid),
+      ),
+      cachedQuery<{ order_id: string; status: string }>(
+        `comandas:${rid}:flags`,
+        'order_items',
+        [
+          { col: 'restaurant_id', op: 'eq', value: rid },
+          { col: 'status', op: 'in', value: ['pending', 'ready'] },
+        ],
+        () => supabase.from('order_items').select('id, order_id, status, restaurant_id').eq('restaurant_id', rid).in('status', ['pending', 'ready']),
+      ),
     ])
     if (o.error || t.error || i.error) {
       setError(errorMessage(o.error ?? t.error ?? i.error))
@@ -49,6 +68,8 @@ export function Comandas() {
     }
     setLoading(false)
   }, [rid])
+
+  useSyncedReload(load)
 
   useEffect(() => {
     void load()
@@ -91,7 +112,7 @@ export function Comandas() {
                 <span className="product-line">
                   <span>{orderTitle(order, tableName)}</span>
                   <span className="product-sub">
-                    #{order.number} · hace {formatElapsed(minutesSince(order.opened_at))}
+                    {order.number ? `#${order.number}` : 'Sin número aún'} · hace {formatElapsed(minutesSince(order.opened_at))}
                     {pending > 0 && <span className="pending-flag"> · {pending} por enviar</span>}
                     {ready > 0 && <span className="pending-flag"> · {ready} listo{ready > 1 ? 's' : ''} para servir</span>}
                   </span>
@@ -131,10 +152,13 @@ function CounterSaleSheet({
   async function submit(e: FormEvent) {
     e.preventDefault()
     setBusy(true)
-    const id = crypto.randomUUID()
-    const { error } = await supabase
-      .from('orders')
-      .insert({ id, restaurant_id: restaurantId, type, customer_name: name.trim() || null })
+    const customer = name.trim() || null
+    const { id, error } = await createOrder({
+      restaurantId,
+      type,
+      customerName: customer,
+      label: `${type === 'takeaway' ? 'Para llevar' : 'Mostrador'}${customer ? ` · ${customer}` : ''}: abrir`,
+    })
     if (error) {
       setError(errorMessage(error))
       setBusy(false)

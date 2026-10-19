@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, errorMessage } from './supabase'
+import { cachedQuery } from './offline'
 import type { Tables } from './database.types'
 
 export type Category = Tables<'categories'>
@@ -25,13 +26,27 @@ export function useMenu(restaurantId: string, includeInactive = false) {
   const [error, setError] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
+    // La carta se guarda en el dispositivo para tomar pedidos sin conexión
+    const k = (name: string) => `menu:${restaurantId}:${name}`
     const [c, p, g, m, pmg, s] = await Promise.all([
-      supabase.from('categories').select('*').eq('restaurant_id', restaurantId).order('sort_order').order('name'),
-      supabase.from('products').select('*').eq('restaurant_id', restaurantId).order('sort_order').order('name'),
-      supabase.from('modifier_groups').select('*').eq('restaurant_id', restaurantId).order('name'),
-      supabase.from('modifiers').select('*').eq('restaurant_id', restaurantId).order('sort_order').order('name'),
-      supabase.from('product_modifier_groups').select('*').eq('restaurant_id', restaurantId).order('sort_order'),
-      supabase.from('stations').select('*').eq('restaurant_id', restaurantId).order('sort_order'),
+      cachedQuery(k('categories'), 'categories', [], () =>
+        supabase.from('categories').select('*').eq('restaurant_id', restaurantId).order('sort_order').order('name'),
+      ),
+      cachedQuery(k('products'), 'products', [], () =>
+        supabase.from('products').select('*').eq('restaurant_id', restaurantId).order('sort_order').order('name'),
+      ),
+      cachedQuery(k('groups'), 'modifier_groups', [], () =>
+        supabase.from('modifier_groups').select('*').eq('restaurant_id', restaurantId).order('name'),
+      ),
+      cachedQuery(k('modifiers'), 'modifiers', [], () =>
+        supabase.from('modifiers').select('*').eq('restaurant_id', restaurantId).order('sort_order').order('name'),
+      ),
+      cachedQuery(k('links'), 'product_modifier_groups', [], () =>
+        supabase.from('product_modifier_groups').select('*').eq('restaurant_id', restaurantId).order('sort_order'),
+      ),
+      cachedQuery(k('stations'), 'stations', [], () =>
+        supabase.from('stations').select('*').eq('restaurant_id', restaurantId).order('sort_order'),
+      ),
     ])
     const failed = [c, p, g, m, pmg, s].find((r) => r.error)
     if (failed?.error) {

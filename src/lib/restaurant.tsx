@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
-import { supabase } from './supabase'
+import { supabase, errorMessage } from './supabase'
+import { cachedQuery } from './offline'
 import { useAuth } from './auth'
 import type { Enums, Tables } from './database.types'
 
@@ -52,13 +53,16 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
       return
     }
     setLoading(true)
-    const { data, error } = await supabase
-      .from('restaurant_members')
-      .select('role, restaurant:restaurants(*)')
-      .eq('user_id', userId)
-      .eq('active', true)
+    // Se guarda en el dispositivo para poder abrir la app sin conexión
+    const { data, error } = await cachedQuery(`members:${userId}`, 'restaurant_members', [], () =>
+      supabase
+        .from('restaurant_members')
+        .select('role, restaurant:restaurants(*)')
+        .eq('user_id', userId)
+        .eq('active', true),
+    )
     if (error) {
-      setError(error.message)
+      setError(errorMessage(error))
     } else {
       setError(null)
       const list = (data ?? [])

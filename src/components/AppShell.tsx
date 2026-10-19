@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { useEffect, useState } from 'react'
 import { useCurrentRestaurant } from '../lib/restaurant'
 import type { Enums } from '../lib/database.types'
+import { SyncBar } from './SyncBar'
 import { IconCaja, IconCocina, IconComandas, IconInicio, IconMas, IconSalon } from './icons'
 
 type Role = Enums<'member_role'>
@@ -21,32 +21,12 @@ export function homeFor(role: Role) {
   return '/salon'
 }
 
-function useOnline() {
-  const [online, setOnline] = useState(() => navigator.onLine)
-  useEffect(() => {
-    const on = () => setOnline(true)
-    const off = () => setOnline(false)
-    window.addEventListener('online', on)
-    window.addEventListener('offline', off)
-    return () => {
-      window.removeEventListener('online', on)
-      window.removeEventListener('offline', off)
-    }
-  }, [])
-  return online
-}
-
 export function AppShell() {
   const { role } = useCurrentRestaurant()
-  const online = useOnline()
 
   return (
     <div className="shell">
-      {!online && (
-        <div className="offline-bar" role="status">
-          Sin conexión. Los datos pueden no estar actualizados.
-        </div>
-      )}
+      <SyncBar />
       <Outlet />
       <nav className="tabbar" aria-label="Secciones">
         {tabs

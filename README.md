@@ -11,7 +11,8 @@ Nombre provisorio.
 | 1 | Carta (categorías, productos, modificadores), toma de pedidos en mesa y mostrador, envío a cocina, comandas abiertas | Listo |
 | 2 | Pantalla de cocina (KDS), cobro con varios medios de pago, descuentos y propinas, caja con arqueo | Listo |
 | 3 | Stock con recetas, compras, mermas y conteos; reportes de ventas con costo y margen; Inicio del dueño | Listo |
-| 4 | Factura electrónica ARCA, Mercado Pago, modo offline completo | Próximo |
+| 4 | Modo sin conexión: pedidos, envío a cocina y KDS sin internet, con sincronización y aviso de conflictos | Listo |
+| 5 | Publicación (Cloudflare Pages), factura electrónica ARCA, Mercado Pago | Próximo |
 
 ## Correr el proyecto
 

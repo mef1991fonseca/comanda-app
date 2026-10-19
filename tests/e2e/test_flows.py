@@ -371,12 +371,79 @@ with sync_playwright() as p:
     shot(page, "s3-05-reportes-tablet")
     page.set_viewport_size({"width": 390, "height": 844})
 
+    # ---------- Sprint 4 · Sin conexión en pleno servicio ----------
+    page.get_by_role("link", name="Salón").click()
+    expect(page.get_by_role("button", name="Mesa 4, libre")).to_be_visible()
+    ctx.set_offline(True)
+    expect(page.locator(".sync-bar.offline")).to_contain_text("Sin conexión")
+    page.get_by_role("button", name="Mesa 4, libre").click()
+    page.get_by_role("button", name="Abrir mesa y cargar pedido").click()
+    expect(page.get_by_role("heading", name="Mesa 4")).to_be_visible()
+    expect(page.get_by_text("Comanda nueva (número al sincronizar)")).to_be_visible()
+    page.get_by_role("button", name="Favoritos").click()
+    page.get_by_role("button", name="Milanesa napolitana $ 12.500").click()
+    page.get_by_role("button", name="Bebidas").click()
+    page.get_by_role("button", name="Agua sin gas $ 2.000").click()
+    expect(page.locator(".order-bar")).to_contain_text("2 por enviar")
+    expect(page.locator(".order-bar")).to_contain_text("$ 14.500")
+    page.get_by_role("button", name="Ver pedido").click()
+    page.get_by_role("button", name="Enviar a cocina · $ 14.500").click()
+    expect(page.locator(".order-bar")).to_contain_text("2 enviados")
+    page.get_by_role("button", name="Ver pedido").click()
+    expect(page.get_by_role("dialog", name="Pedido").get_by_text("Para cobrar hace falta conexión")).to_be_visible()
+    shot(page, "s4-01-pedido-sin-conexion")
+    page.get_by_role("button", name="Seguir cargando").click()
+    page.get_by_role("link", name="Volver").click()
+    expect(page.get_by_role("button", name="Mesa 4, ocupada")).to_contain_text("$ 14.500")
+    expect(page.locator(".sync-bar.offline")).to_contain_text("4 cambios guardados")
+    shot(page, "s4-02-salon-sin-conexion")
+
+    # la cocina, también sin conexión, marca el pedido como listo
+    page.get_by_role("link", name="Más").click()
+    page.get_by_role("button", name="Pantalla de cocina").click()
+    kds = page.locator(".kds-ticket").filter(has_text="Mesa 4")
+    expect(kds).to_contain_text("Milanesa napolitana")
+    kds.get_by_role("button", name="Todo listo", exact=True).click()
+    expect(page.locator(".kds-ready")).to_contain_text("Mesa 4")
+    assert not any(o.get("table_id") and o["status"] == "open" and o["total"] == 14500 for o in fake.db["orders"]), "no debería haber llegado al servidor"
+
+    # vuelve la conexión: todo se sincroniza en orden
+    ctx.set_offline(False)
+    expect(page.locator(".sync-bar")).to_have_count(0, timeout=15000)
+    synced = [o for o in fake.db["orders"] if o["status"] == "open" and o["total"] == 14500]
+    assert len(synced) == 1 and synced[0]["number"], "la comanda sincronizada debe tener número"
+    mesa4 = synced[0]
+    items4 = [i for i in fake.db["order_items"] if i["order_id"] == mesa4["id"]]
+    assert sorted(i["status"] for i in items4) == ["ready", "ready"], items4
+    page.get_by_role("link", name="Salón").click()
+    page.get_by_role("button", name="Mesa 4, ocupada, con platos listos").click()
+    expect(page.get_by_role("dialog")).to_contain_text(f"Comanda #{mesa4['number']}")
+    page.get_by_role("button", name="Cerrar", exact=True).click()
+
+    # conflicto: sin conexión se carga algo en una mesa que otro dispositivo ya cobró y cerró
+    page.get_by_role("button", name="Mesa 4, ocupada, con platos listos").click()
+    page.get_by_role("button", name="Ver comanda").click()
+    ctx.set_offline(True)
+    page.get_by_role("button", name="Bebidas").click()
+    page.get_by_role("button", name="Agua sin gas $ 2.000").click()
+    mesa4["paid_total"], mesa4["status"] = mesa4["total"], "closed"   # otro dispositivo cerró la mesa
+    ctx.set_offline(False)
+    failed_bar = page.locator(".sync-bar.failed")
+    expect(failed_bar).to_contain_text("1 cambio no se pudo guardar", timeout=15000)
+    failed_bar.click()
+    expect(page.get_by_role("dialog", name="Cambios no guardados")).to_contain_text("Mesa 4: agregar Agua sin gas")
+    expect(page.get_by_role("dialog", name="Cambios no guardados")).to_contain_text("ya no está abierta")
+    shot(page, "s4-03-conflicto")
+    page.get_by_role("button", name="Descartar todos").click()
+    expect(page.locator(".sync-bar")).to_have_count(0)
+
     page.get_by_role("link", name="Más").click()
     page.get_by_role("button", name="Cerrar sesión").click()
     expect(page.get_by_label("Email")).to_be_visible()
 
     browser.close()
-    real = [e for e in errors if "WebSocket" not in e and "realtime" not in e.lower() and "status of 400" not in e]
+    real = [e for e in errors if "WebSocket" not in e and "realtime" not in e.lower() and "status of 400" not in e
+            and "ERR_INTERNET_DISCONNECTED" not in e and "Failed to fetch" not in e]
     print("ERRORES DE CONSOLA:", real or "ninguno")
     if real:
         sys.exit(1)
