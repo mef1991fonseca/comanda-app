@@ -50,6 +50,11 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
     Cobros, caja, stock y administración piden conexión. El número de comanda llega al sincronizar.
   - Al cerrar sesión se borra la caché (`clearCache`), con confirmación si hay cambios pendientes.
 
+- **Hosting:** Cloudflare Pages conectado a GitHub (`main` publica solo). Build `npm run build`, salida `dist`,
+  Node 22 (`.node-version`). Las variables públicas de Supabase van en `.env.production` (no hace falta
+  cargarlas en el panel). Sin `404.html`, Pages sirve `index.html` en cualquier ruta (SPA). Cabeceras en
+  `public/_headers`. En Supabase Auth, la URL del sitio y las de redirección deben incluir el dominio publicado.
+
 ## Diseño
 
 Sistema en `src/styles.css`. Verde botella `--bottle` (marca, mesas ocupadas), mostaza `--mustard` (algo
@@ -92,5 +97,5 @@ Salón, Comandas, Caja, Más; Cocina para ellos está en Más.
 - Impresión de comandas y precuentas (ESC/POS) todavía no está.
 - El costo en reportes usa el costo actual de los insumos, no el histórico al momento de la venta.
 - Cantidades con decimales se escriben con coma (es-AR): `parseAmount` toma el punto como separador de miles.
-- Deploy público (Cloudflare Pages o similar) y dominio.
+- Dominio propio (hoy el subdominio de pages.dev).
 - Confirmación de email: Supabase usa el SMTP por defecto (límite bajo); configurar SMTP propio antes de pilotos.
