@@ -391,9 +391,12 @@ p {
   color: #fff;
   font-weight: 600;
 }
-.table-tile.late {
+.table-tile.waiting {
   border-color: var(--mustard);
   box-shadow: inset 0 0 0 3px var(--mustard);
+}
+.table-tile.waiting .meta {
+  color: var(--mustard-soft);
 }
 
 /* ---------- Hoja inferior (bottom sheet) ---------- */
@@ -406,6 +409,9 @@ p {
   align-items: end;
 }
 .sheet {
+  max-height: 92dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--card);
   border-radius: var(--r-lg) var(--r-lg) 0 0;
   padding: 20px 20px calc(20px + var(--safe-b));
@@ -431,6 +437,11 @@ p {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+}
+.sheet-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
 }
 .sheet-head .big {
   font-family: var(--font-display);
@@ -531,4 +542,358 @@ button.list-row {
   font-weight: 600;
   text-align: center;
   padding: 6px 12px;
+}
+
+/* =============================================================
+   Sprint 1 · carta y toma de pedidos
+   ============================================================= */
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+a.btn {
+  text-decoration: none;
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.link-btn {
+  background: none;
+  border: 0;
+  padding: 8px 0;
+  color: var(--bottle);
+  font-weight: 600;
+  cursor: pointer;
+  justify-self: start;
+}
+.product-line {
+  display: grid;
+  gap: 2px;
+}
+.product-sub {
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.price {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.125rem;
+  white-space: nowrap;
+}
+.add-row {
+  color: var(--bottle);
+  font-weight: 600;
+}
+.pending-flag {
+  color: #8a6106;
+  font-weight: 600;
+}
+
+/* ---------- Formularios en hojas ---------- */
+.form {
+  display: grid;
+  gap: 14px;
+}
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.field select,
+.field textarea {
+  min-height: var(--tap);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+  background: var(--card);
+  font: inherit;
+  resize: vertical;
+}
+.field select:focus,
+.field textarea:focus {
+  border-color: var(--bottle);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--bottle-soft);
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  cursor: pointer;
+}
+.check input {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--bottle);
+  flex: none;
+}
+.fieldset {
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 8px 14px 10px;
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+.fieldset legend {
+  font-weight: 600;
+  padding: 0 6px;
+}
+.hint {
+  font-size: 0.875rem;
+}
+.option-row {
+  display: grid;
+  grid-template-columns: 1fr 96px 44px;
+  gap: 8px;
+}
+.option-row input {
+  min-height: 44px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 0 10px;
+  min-width: 0;
+}
+.icon-btn {
+  border: 0;
+  background: transparent;
+  font-size: 1.5rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+  border-radius: var(--r-sm);
+}
+
+/* ---------- Pantalla de comanda ---------- */
+.order-page {
+  padding-bottom: 88px; /* espacio para la barra del pedido en celular */
+}
+.order-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--surface);
+  padding: 12px 16px 10px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.order-head .muted {
+  font-size: 0.875rem;
+}
+.back-link {
+  color: var(--bottle);
+  font-weight: 600;
+  text-decoration: none;
+  min-height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  padding-right: 6px;
+  border-right: 1px solid var(--line);
+}
+.order-layout {
+  padding: 0 16px 24px;
+}
+.picker {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+}
+.search {
+  min-height: var(--tap);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 0 14px;
+  background: var(--card);
+  margin-bottom: 8px;
+}
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.product-tile {
+  min-height: 88px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  padding: 12px;
+  display: grid;
+  align-content: space-between;
+  text-align: left;
+  cursor: pointer;
+  gap: 8px;
+}
+.product-tile:active {
+  background: var(--bottle-soft);
+  border-color: var(--bottle);
+}
+.product-tile .name {
+  font-weight: 600;
+  line-height: 1.25;
+}
+.ticket-pane {
+  display: none;
+}
+.order-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--nav-h) + var(--safe-b));
+  z-index: 9;
+  background: var(--card);
+  border-top: 1px solid var(--line);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.order-ticket {
+  gap: 10px;
+}
+.ticket-group {
+  display: grid;
+  gap: 2px;
+}
+.ticket-group-head {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  padding-bottom: 2px;
+  border-bottom: 1px dashed #e2d8b8;
+}
+.ticket-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  border-bottom: 1px dashed #efe7cd;
+}
+.ticket-item.cancelled .item-name {
+  text-decoration: line-through;
+  color: var(--ink-soft);
+}
+.item-main {
+  background: none;
+  border: 0;
+  padding: 6px 0;
+  text-align: left;
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+}
+.item-text {
+  display: grid;
+  gap: 1px;
+}
+.item-name {
+  font-weight: 600;
+}
+.item-detail {
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.item-note {
+  font-style: italic;
+}
+.ticket-item .amount,
+.ticket-total .amount {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.0625rem;
+  min-width: 72px;
+  text-align: right;
+}
+.ticket-total {
+  padding-top: 4px;
+  font-weight: 600;
+}
+.ticket-total .amount {
+  font-size: 1.5rem;
+}
+.qty {
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  color: var(--ink-soft);
+}
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+}
+.stepper button {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  background: transparent;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--bottle);
+  cursor: pointer;
+  border-radius: 999px;
+}
+.stepper span {
+  min-width: 24px;
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.125rem;
+}
+.qty-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+}
+.status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--bottle-soft);
+  color: var(--bottle-deep);
+}
+.status-pending {
+  background: var(--mustard-soft);
+  color: #6b4c05;
+}
+.status-ready {
+  background: var(--bottle);
+  color: #fff;
+}
+.status-cancelled {
+  background: var(--tomato-soft);
+  color: #7d2617;
+}
+
+@media (min-width: 900px) {
+  .order-page {
+    padding-bottom: 0;
+  }
+  .order-layout {
+    display: grid;
+    grid-template-columns: 1fr minmax(320px, 400px);
+    gap: 20px;
+    align-items: start;
+  }
+  .ticket-pane {
+    display: block;
+    position: sticky;
+    top: 84px;
+  }
+  .order-bar {
+    display: none;
+  }
 }

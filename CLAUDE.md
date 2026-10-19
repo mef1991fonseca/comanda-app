@@ -21,6 +21,9 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
     1 unidad de su insumo.
   - `close_cash_session(session, contado)` calcula el efectivo esperado (apertura + cobros en efectivo con
     propina + ingresos − retiros).
+  - Precio de ítems: el trigger `order_items_enrich` toma nombre, precio y estación del producto y
+    reconstruye los modificadores desde sus ids (el cliente manda `modifiers: [{id}]`). El dispositivo no
+    puede imponer precios. Validación de mínimos/máximos de cada grupo: hoy solo en el cliente (`validateSelection`).
 - **Pagos se anulan** con `voided_at`, nunca se borran.
 - **Roles:** owner, manager, cashier, waiter, kitchen. Matriz en `supabase/migrations/20261019120300_rls_and_rpc.sql`.
   Helpers de RLS en schema `private` (`private.is_member`, `private.has_role`), fuera de la API.
@@ -43,16 +46,23 @@ Texto de interfaz: oraciones cortas, verbos concretos, sin disculpas en errores.
 - **Probar lógica de base:** bloque `do $$ … raise exception 'RESULTADO: %', log; $$` que crea usuarios
   en `auth.users`, simula sesión con `set_config('request.jwt.claims', …)` + `set_config('role','authenticated')`
   y termina con excepción para que todo se descarte.
-- **Probar la UI:** `npm run build`, `npx vite preview --port 4173`, `python3 tests/e2e/test_sprint0.py`.
+- **Probar la UI:** `npm run build`, `npx vite preview --port 4173`, `cd tests/e2e && python3 test_flows.py`.
   El sandbox no llega a supabase.co, por eso la e2e usa `tests/e2e/fake_supabase.py`; extenderlo con los
   endpoints nuevos de cada sprint. Chromium necesita `--proxy-server` y `--proxy-bypass-list=127.0.0.1;localhost`
   (ya en el script). Mirar los screenshots en `tests/e2e/screenshots/`.
 - `npm run build` corre `tsc` estricto (`noUncheckedIndexedAccess`): tiene que pasar sin errores.
+
+## Pantallas (src/pages)
+
+Salón (mesas en vivo, abrir mesa → comanda) · Comandas (abiertas + venta de mostrador) · Comanda (carta +
+pedido, envío a cocina, cancelar ítems) · Carta y Modificadores (owner/manager, desde Más) · Más · Cocina y
+Caja todavía son placeholders (`Upcoming.tsx`).
 
 ## Pendientes conocidos
 
 - Invitar miembros al equipo (necesita RPC que busque usuario por email o invitación por link).
 - Modo offline real: hoy la PWA cachea la app, pero los datos requieren conexión. Plan: cola local
   (IndexedDB) de operaciones con uuid generados en el dispositivo + sincronización.
+- Validar mínimos/máximos de modificadores también en el servidor.
 - Deploy público (Cloudflare Pages o similar) y dominio.
 - Confirmación de email: Supabase usa el SMTP por defecto (límite bajo); configurar SMTP propio antes de pilotos.

@@ -2,11 +2,6 @@ import { TopBar } from '../components/AppShell'
 
 /** Secciones del MVP que todavía no están construidas. */
 const copy = {
-  comandas: {
-    title: 'Comandas',
-    heading: 'Todavía no hay comandas para mostrar',
-    body: 'Acá vas a ver las ventas abiertas de mesa, mostrador y take away, con su total y lo que falta cobrar. Por ahora, abrí mesas desde el Salón.',
-  },
   cocina: {
     title: 'Cocina',
     heading: 'La pantalla de cocina todavía no está activa',

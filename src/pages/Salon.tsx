@@ -3,7 +3,9 @@ import { supabase, errorMessage } from '../lib/supabase'
 import { useCurrentRestaurant } from '../lib/restaurant'
 import { formatElapsed, formatMoney, minutesSince } from '../lib/format'
 import type { Tables } from '../lib/database.types'
+import { useNavigate } from 'react-router-dom'
 import { TopBar } from '../components/AppShell'
+import { Sheet } from '../components/Sheet'
 
 type Area = Tables<'dining_areas'>
 type Table = Tables<'tables'>
@@ -26,6 +28,7 @@ export function Salon() {
   const [areas, setAreas] = useState<Area[]>([])
   const [tables, setTables] = useState<Table[]>([])
   const [orders, setOrders] = useState<Order[]>([])
+  const [waiting, setWaiting] = useState<Set<string>>(new Set())
   const [areaId, setAreaId] = useState<string | null>(null)
   const [selected, setSelected] = useState<Table | null>(null)
   const [loading, setLoading] = useState(true)
@@ -33,14 +36,15 @@ export function Salon() {
   const now = useNow()
 
   const loadOrders = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('restaurant_id', rid)
-      .eq('status', 'open')
-      .not('table_id', 'is', null)
-    if (error) setError(errorMessage(error))
-    else setOrders(data)
+    const [o, p] = await Promise.all([
+      supabase.from('orders').select('*').eq('restaurant_id', rid).eq('status', 'open').not('table_id', 'is', null),
+      supabase.from('order_items').select('order_id').eq('restaurant_id', rid).eq('status', 'pending'),
+    ])
+    if (o.error || p.error) setError(errorMessage(o.error ?? p.error))
+    else {
+      setOrders(o.data)
+      setWaiting(new Set(p.data.map((x) => x.order_id)))
+    }
   }, [rid])
 
   useEffect(() => {
@@ -67,6 +71,9 @@ export function Salon() {
     const channel = supabase
       .channel(`salon-${rid}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${rid}` }, () => {
+        void loadOrders()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items', filter: `restaurant_id=eq.${rid}` }, () => {
         void loadOrders()
       })
       .subscribe()
@@ -118,12 +125,13 @@ export function Salon() {
             <div className="floor">
               {visible.map((t) => {
                 const order = orderByTable.get(t.id)
+                const toSend = order ? waiting.has(order.id) : false
                 return (
                   <button
                     key={t.id}
-                    className={`table-tile${order ? ' busy' : ''}`}
+                    className={`table-tile${order ? ' busy' : ''}${toSend ? ' waiting' : ''}`}
                     onClick={() => setSelected(t)}
-                    aria-label={`Mesa ${t.name}, ${order ? 'ocupada' : 'libre'}`}
+                    aria-label={`Mesa ${t.name}, ${order ? 'ocupada' : 'libre'}${toSend ? ', con pedido sin enviar' : ''}`}
                   >
                     <span className="num">{t.name}</span>
                     <span className="meta">
@@ -131,7 +139,7 @@ export function Salon() {
                         <>
                           <strong>{order.total > 0 ? formatMoney(order.total) : 'Sin pedidos'}</strong>
                           <br />
-                          {formatElapsed(minutesSince(order.opened_at, now))}
+                          {toSend ? 'Sin enviar' : formatElapsed(minutesSince(order.opened_at, now))}
                         </>
                       ) : (
                         `${t.seats} lugares`
@@ -177,89 +185,91 @@ function TableSheet({
   onClose: () => void
   onChanged: () => Promise<void>
 }) {
+  const navigate = useNavigate()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
-  async function run(action: () => PromiseLike<{ error: unknown }>) {
+  async function openTable() {
     setBusy(true)
     setError(null)
-    const { error } = await action()
+    const id = crypto.randomUUID()
+    const { error } = await supabase
+      .from('orders')
+      .insert({ id, restaurant_id: restaurantId, type: 'dine_in', table_id: table.id })
+    if (error) {
+      setError(errorMessage(error))
+      setBusy(false)
+      return
+    }
+    navigate(`/comanda/${id}`)
+  }
+
+  async function releaseTable() {
+    if (!order) return
+    setBusy(true)
+    setError(null)
+    const { error } = await supabase
+      .from('orders')
+      .update({ status: 'cancelled', cancelled_reason: 'Mesa liberada sin consumo' })
+      .eq('id', order.id)
     if (error) {
       setError(errorMessage(error))
       setBusy(false)
       return
     }
     await onChanged()
-    setBusy(false)
     onClose()
   }
-
-  const openTable = () =>
-    run(() => supabase.from('orders').insert({ restaurant_id: restaurantId, type: 'dine_in', table_id: table.id }))
-
-  const releaseTable = () =>
-    order &&
-    run(() =>
-      supabase.from('orders').update({ status: 'cancelled', cancelled_reason: 'Mesa liberada sin consumo' }).eq('id', order.id),
-    )
 
   const isEmpty = order !== null && order.total === 0 && order.paid_total === 0
 
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" onClick={(e) => e.stopPropagation()}>
-        <div className="sheet-head">
-          <span id="sheet-title" className="big">Mesa {table.name}</span>
-          <span className="badge">{order ? 'Ocupada' : 'Libre'}</span>
-        </div>
-
-        {order ? (
-          <div className="ticket">
-            <div className="ticket-row">
-              <span>Comanda #{order.number}</span>
-              <span className="muted">abierta hace {formatElapsed(minutesSince(order.opened_at, now))}</span>
-            </div>
-            <div className="ticket-row">
-              <span>Total</span>
-              <span className="amount">{formatMoney(order.total)}</span>
-            </div>
-            <div className="ticket-row">
-              <span>Pagado</span>
-              <span className="amount">{formatMoney(order.paid_total)}</span>
-            </div>
+    <Sheet
+      title={<span className="big">Mesa {table.name}</span>}
+      aside={<span className="badge">{order ? 'Ocupada' : 'Libre'}</span>}
+      onClose={onClose}
+    >
+      {order ? (
+        <div className="ticket">
+          <div className="ticket-row">
+            <span>Comanda #{order.number}</span>
+            <span className="muted">abierta hace {formatElapsed(minutesSince(order.opened_at, now))}</span>
           </div>
-        ) : (
-          <p className="muted">{table.seats} lugares. Abrila para empezar a cargar el pedido.</p>
-        )}
-
-        {order && (
-          <p className="muted">Cargar productos estará disponible cuando armes la carta del local.</p>
-        )}
-
-        {error && <div className="notice notice-error" role="alert">{error}</div>}
-
-        <div className="sheet-actions">
-          {!order && canSell && (
-            <button className="btn btn-primary" onClick={openTable} disabled={busy}>
-              Abrir mesa
-            </button>
-          )}
-          {order && canSell && isEmpty && (
-            <button className="btn btn-danger" onClick={releaseTable} disabled={busy}>
-              Liberar mesa
-            </button>
-          )}
-          <button className="btn btn-quiet" onClick={onClose}>
-            Cerrar
-          </button>
+          <div className="ticket-row">
+            <span>Total</span>
+            <span className="amount">{formatMoney(order.total)}</span>
+          </div>
+          <div className="ticket-row">
+            <span>Pagado</span>
+            <span className="amount">{formatMoney(order.paid_total)}</span>
+          </div>
         </div>
+      ) : (
+        <p className="muted">{table.seats} lugares. Abrila para empezar a cargar el pedido.</p>
+      )}
+
+      {error && <div className="notice notice-error" role="alert">{error}</div>}
+
+      <div className="sheet-actions">
+        {!order && canSell && (
+          <button className="btn btn-primary" onClick={openTable} disabled={busy}>
+            Abrir mesa y cargar pedido
+          </button>
+        )}
+        {order && (
+          <button className="btn btn-primary" onClick={() => navigate(`/comanda/${order.id}`)}>
+            Ver comanda
+          </button>
+        )}
+        {order && canSell && isEmpty && (
+          <button className="btn btn-danger" onClick={releaseTable} disabled={busy}>
+            Liberar mesa
+          </button>
+        )}
+        <button className="btn btn-quiet" onClick={onClose}>
+          Cerrar
+        </button>
       </div>
-    </div>
+    </Sheet>
   )
 }

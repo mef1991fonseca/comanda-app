@@ -6,6 +6,10 @@ import { Login } from './pages/Login'
 import { Onboarding } from './pages/Onboarding'
 import { Salon } from './pages/Salon'
 import { Upcoming } from './pages/Upcoming'
+import { Comandas } from './pages/Comandas'
+import { Comanda } from './pages/Comanda'
+import { Carta } from './pages/Carta'
+import { Modificadores } from './pages/Modificadores'
 import { Mas } from './pages/Mas'
 
 export function App() {
@@ -29,7 +33,14 @@ export function App() {
       <Route path="/nuevo-local" element={<Onboarding first={false} />} />
       <Route element={<AppShell />}>
         <Route path="/salon" element={<Salon />} />
-        <Route path="/comandas" element={<Upcoming section="comandas" />} />
+        <Route path="/comandas" element={<Comandas />} />
+        <Route path="/comanda/:orderId" element={<Comanda />} />
+        {(current.role === 'owner' || current.role === 'manager') && (
+          <>
+            <Route path="/carta" element={<Carta />} />
+            <Route path="/carta/modificadores" element={<Modificadores />} />
+          </>
+        )}
         <Route path="/cocina" element={<Upcoming section="cocina" />} />
         <Route path="/caja" element={<Upcoming section="caja" />} />
         <Route path="/mas" element={<Mas />} />

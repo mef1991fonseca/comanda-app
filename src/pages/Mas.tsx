@@ -43,6 +43,18 @@ export function Mas() {
       <div className="content">
         {error && <div className="notice notice-error" role="alert">{error}</div>}
 
+        {(role === 'owner' || role === 'manager') && (
+          <section className="section">
+            <h2>Local</h2>
+            <div className="list">
+              <button className="list-row" onClick={() => navigate('/carta')}>
+                <span>Carta</span>
+                <span className="muted">Categorías, productos y modificadores</span>
+              </button>
+            </div>
+          </section>
+        )}
+
         <section className="section">
           <h2>Equipo</h2>
           <div className="list">
