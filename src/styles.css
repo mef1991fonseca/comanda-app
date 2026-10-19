@@ -1,0 +1,534 @@
+/* =============================================================
+   Comandá · sistema visual
+   Verde botella de bodegón + mostaza para "algo espera" + tomate para "algo falla".
+   El papel cálido (--paper) se reserva para tickets/comandas.
+   ============================================================= */
+
+:root {
+  --bottle: #1f4d3a;
+  --bottle-deep: #143426;
+  --bottle-soft: #dbe7e0;
+  --ink: #17201b;
+  --ink-soft: #55605a;
+  --line: #d5dbd6;
+  --surface: #f2f4f1;
+  --card: #ffffff;
+  --mustard: #e0a526;
+  --mustard-soft: #fbeecb;
+  --tomato: #c4432e;
+  --tomato-soft: #f8ddd7;
+  --paper: #fffcf3;
+
+  --font-body: 'Barlow', system-ui, sans-serif;
+  --font-display: 'Barlow Condensed', 'Barlow', system-ui, sans-serif;
+
+  --r-sm: 8px;
+  --r-md: 14px;
+  --r-lg: 22px;
+
+  --tap: 48px; /* objetivo táctil mínimo */
+  --nav-h: 64px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--mustard);
+  outline-offset: 2px;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.1;
+  margin: 0;
+}
+
+h1 {
+  font-size: 1.75rem;
+}
+h2 {
+  font-size: 1.375rem;
+}
+h3 {
+  font-size: 1.125rem;
+}
+
+p {
+  margin: 0;
+}
+
+.muted {
+  color: var(--ink-soft);
+}
+
+/* ---------- Botones ---------- */
+.btn {
+  appearance: none;
+  border: 0;
+  border-radius: var(--r-md);
+  min-height: var(--tap);
+  padding: 0 20px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background-color 120ms ease, transform 80ms ease;
+}
+.btn:active {
+  transform: scale(0.98);
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+.btn-primary {
+  background: var(--bottle);
+  color: #fff;
+}
+.btn-primary:hover {
+  background: var(--bottle-deep);
+}
+.btn-quiet {
+  background: transparent;
+  color: var(--bottle);
+  border: 1.5px solid var(--line);
+}
+.btn-danger {
+  background: transparent;
+  color: var(--tomato);
+  border: 1.5px solid var(--tomato-soft);
+}
+.btn-block {
+  width: 100%;
+}
+
+/* ---------- Formularios ---------- */
+.field {
+  display: grid;
+  gap: 6px;
+}
+.field label {
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+.field input {
+  min-height: var(--tap);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 0 14px;
+  background: var(--card);
+}
+.field input:focus {
+  border-color: var(--bottle);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--bottle-soft);
+}
+.field .hint {
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+
+.notice {
+  border-radius: var(--r-sm);
+  padding: 12px 14px;
+  font-size: 0.9375rem;
+}
+.notice-error {
+  background: var(--tomato-soft);
+  color: #7d2617;
+}
+.notice-info {
+  background: var(--bottle-soft);
+  color: var(--bottle-deep);
+}
+
+/* ---------- Pantallas de acceso (login, crear local) ---------- */
+.entry {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+.entry-brand {
+  background: var(--bottle);
+  color: #fff;
+  padding: 40px 24px 56px;
+}
+.entry-brand .wordmark {
+  font-family: var(--font-display);
+  font-size: 3rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+.entry-brand p {
+  margin-top: 8px;
+  max-width: 32ch;
+  color: #cfe0d6;
+}
+.entry-body {
+  background: var(--surface);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  margin-top: -24px;
+  padding: 28px 24px 40px;
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  width: 100%;
+  max-width: 480px;
+  justify-self: center;
+}
+.switcher {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: #e4e9e5;
+  border-radius: var(--r-md);
+  padding: 4px;
+}
+.switcher button {
+  border: 0;
+  background: transparent;
+  min-height: 40px;
+  border-radius: 10px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.switcher button[aria-pressed='true'] {
+  background: var(--card);
+  color: var(--ink);
+}
+
+/* ---------- Estructura de la app ---------- */
+.shell {
+  min-height: 100dvh;
+  padding-bottom: calc(var(--nav-h) + var(--safe-b));
+}
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--surface);
+  padding: 14px 16px 10px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.topbar .place {
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+.content {
+  padding: 4px 16px 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.tabbar {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 10;
+  background: var(--card);
+  border-top: 1px solid var(--line);
+  padding-bottom: var(--safe-b);
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+}
+.tabbar a {
+  min-height: var(--nav-h);
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 2px;
+  text-decoration: none;
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.tabbar a svg {
+  width: 24px;
+  height: 24px;
+}
+.tabbar a.active {
+  color: var(--bottle);
+}
+.tabbar a.active svg {
+  stroke-width: 2.25;
+}
+
+@media (min-width: 900px) {
+  /* En tablet/PC la navegación pasa a la izquierda */
+  .shell {
+    padding-bottom: 0;
+    padding-left: 96px;
+  }
+  .tabbar {
+    inset: 0 auto 0 0;
+    width: 96px;
+    border-top: 0;
+    border-right: 1px solid var(--line);
+    grid-auto-flow: row;
+    grid-auto-rows: 80px;
+    align-content: start;
+    padding-top: 16px;
+  }
+}
+
+/* ---------- Salón ---------- */
+.areas {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+}
+.areas button {
+  border: 1.5px solid var(--line);
+  background: transparent;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.areas button[aria-pressed='true'] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+
+.floor-summary {
+  display: flex;
+  gap: 16px;
+  font-size: 0.9375rem;
+  color: var(--ink-soft);
+  padding-bottom: 14px;
+}
+.floor-summary strong {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  color: var(--ink);
+  margin-right: 4px;
+}
+
+.floor {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+}
+.table-tile {
+  aspect-ratio: 1;
+  border-radius: var(--r-md);
+  border: 2px dashed #b9c3bc;
+  background: transparent;
+  cursor: pointer;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  padding: 8px 10px;
+  text-align: left;
+  position: relative;
+}
+.table-tile .num {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 2.75rem;
+  line-height: 1;
+  color: #8a968e;
+}
+.table-tile .meta {
+  font-size: 0.8125rem;
+  line-height: 1.25;
+  min-height: 2.5em;
+}
+.table-tile.busy {
+  border: 2px solid var(--bottle);
+  background: var(--bottle);
+  color: #fff;
+}
+.table-tile.busy .num {
+  color: #fff;
+}
+.table-tile.busy .meta {
+  color: #d3e3da;
+}
+.table-tile.busy .meta strong {
+  color: #fff;
+  font-weight: 600;
+}
+.table-tile.late {
+  border-color: var(--mustard);
+  box-shadow: inset 0 0 0 3px var(--mustard);
+}
+
+/* ---------- Hoja inferior (bottom sheet) ---------- */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: rgb(23 32 27 / 0.45);
+  display: grid;
+  align-items: end;
+}
+.sheet {
+  background: var(--card);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  padding: 20px 20px calc(20px + var(--safe-b));
+  display: grid;
+  gap: 14px;
+  width: 100%;
+  max-width: 560px;
+  justify-self: center;
+  animation: sheet-in 180ms ease-out;
+}
+@keyframes sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet {
+    animation: none;
+  }
+}
+.sheet-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.sheet-head .big {
+  font-family: var(--font-display);
+  font-size: 2.25rem;
+  font-weight: 700;
+}
+.sheet-actions {
+  display: grid;
+  gap: 10px;
+}
+
+/* ---------- Ticket (papel de comanda) ---------- */
+.ticket {
+  background: var(--paper);
+  border-radius: var(--r-sm);
+  padding: 14px 16px;
+  border: 1px solid #ece4cc;
+  display: grid;
+  gap: 4px;
+}
+.ticket-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ticket-row .amount {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.125rem;
+}
+
+/* ---------- Estados vacíos ---------- */
+.empty {
+  border: 2px dashed var(--line);
+  border-radius: var(--r-md);
+  padding: 28px 20px;
+  display: grid;
+  gap: 8px;
+  max-width: 62ch;
+}
+
+/* ---------- Listas simples (Más) ---------- */
+.list {
+  background: var(--card);
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.list-row {
+  min-height: 56px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  width: 100%;
+  background: transparent;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
+  text-align: left;
+}
+.list-row:first-child {
+  border-top: 0;
+}
+button.list-row {
+  cursor: pointer;
+}
+.section {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.section h2 {
+  font-size: 1.125rem;
+}
+.badge {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--bottle-soft);
+  color: var(--bottle-deep);
+}
+
+.center-screen {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  color: var(--ink-soft);
+}
+
+.offline-bar {
+  background: var(--mustard-soft);
+  color: #6b4c05;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: center;
+  padding: 6px 12px;
+}
