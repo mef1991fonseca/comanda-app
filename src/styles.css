@@ -1220,3 +1220,330 @@ a.btn {
 .sheet {
   overflow-x: hidden;
 }
+
+/* =============================================================
+   Sprint 3 · stock, reportes e inicio
+   ============================================================= */
+
+.neg {
+  color: var(--tomato);
+}
+
+/* ---------- Stock ---------- */
+.stock-alert {
+  width: 100%;
+  text-align: left;
+  display: grid;
+  gap: 2px;
+  border: 0;
+  border-left: 6px solid var(--tomato);
+  background: var(--tomato-soft);
+  color: #7d2617;
+  border-radius: var(--r-sm);
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+}
+.stock-alert span {
+  font-size: 0.9375rem;
+}
+.stock-filters {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.stock-filters .search {
+  margin-bottom: 0;
+}
+.switcher.four {
+  grid-template-columns: repeat(4, 1fr);
+}
+.recipe-row {
+  display: grid;
+  grid-template-columns: 1fr 84px 28px 40px;
+  gap: 8px;
+  align-items: center;
+}
+.recipe-row select,
+.recipe-row input {
+  min-height: 44px;
+  min-width: 0;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 0 10px;
+  background: var(--card);
+}
+.recipe-row .unit {
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+}
+.recipe-cost {
+  font-weight: 600;
+  padding-top: 4px;
+}
+
+/* ---------- Indicadores ---------- */
+.today {
+  margin-bottom: 12px;
+}
+.nowrap {
+  white-space: nowrap;
+}
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin: 12px 0 24px;
+}
+.kpi {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+  display: grid;
+  gap: 2px;
+}
+.kpi-main {
+  grid-column: 1 / -1;
+  background: var(--bottle);
+  border-color: var(--bottle);
+  color: #fff;
+}
+.kpi-label {
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+.kpi-main .kpi-label {
+  color: #cfe0d6;
+}
+.kpi-value {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.75rem;
+  line-height: 1.1;
+}
+.kpi-main .kpi-value {
+  font-size: 2.75rem;
+}
+@media (min-width: 900px) {
+  .kpis {
+    grid-template-columns: 2fr repeat(4, 1fr);
+  }
+  .kpi-main {
+    grid-column: auto;
+  }
+}
+
+/* ---------- Ahora (inicio) ---------- */
+.now-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.now-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+  display: grid;
+  gap: 2px;
+  text-decoration: none;
+  color: inherit;
+  min-height: 96px;
+  align-content: start;
+}
+.now-card.alert {
+  border-color: var(--tomato);
+  box-shadow: inset 4px 0 0 var(--tomato);
+}
+.now-card.warn {
+  border-color: var(--mustard);
+  box-shadow: inset 4px 0 0 var(--mustard);
+}
+.now-value {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.75rem;
+  line-height: 1.1;
+}
+.now-of {
+  color: var(--ink-soft);
+  font-weight: 600;
+  font-size: 1.25rem;
+}
+.now-label {
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+@media (min-width: 900px) {
+  .now-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* ---------- Gráfico de barras (una serie) ---------- */
+.chart {
+  margin: 0;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 14px 14px 8px;
+}
+.chart-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.125rem;
+  margin-bottom: 6px;
+}
+.chart-plot {
+  position: relative;
+}
+.chart svg {
+  width: 100%;
+  height: auto;
+  max-height: 260px;
+  display: block;
+  overflow: visible;
+}
+.chart-grid {
+  stroke: #e7ebe8;
+  stroke-width: 1;
+}
+.chart-axis {
+  stroke: #c9d1cb;
+  stroke-width: 1;
+}
+.chart-bar {
+  fill: var(--bottle);
+}
+.chart-bar.on {
+  fill: var(--bottle-deep);
+}
+.chart rect[tabindex]:focus {
+  outline: none;
+}
+.chart rect[tabindex]:focus-visible {
+  stroke: var(--mustard);
+  stroke-width: 2;
+}
+.chart-tick {
+  font-size: 12px;
+  fill: var(--ink-soft);
+  font-family: var(--font-body);
+}
+.chart-peak {
+  font-size: 13px;
+  font-weight: 600;
+  fill: var(--ink);
+  font-family: var(--font-body);
+}
+.chart-tip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: var(--ink);
+  color: #fff;
+  font-size: 0.875rem;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  pointer-events: none;
+}
+.chart-tip .muted {
+  color: #c9d1cb;
+}
+.chart-table summary {
+  cursor: pointer;
+  color: var(--bottle);
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 6px 0;
+}
+.chart-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.chart-table th,
+.chart-table td {
+  text-align: left;
+  padding: 4px 0;
+  border-top: 1px solid var(--line);
+}
+
+/* ---------- Participación (medios de pago, canales) ---------- */
+.share-list {
+  display: grid;
+  gap: 12px;
+}
+.share-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+.share-pct {
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 400;
+}
+.share-track {
+  height: 8px;
+  border-radius: 999px;
+  background: #e4e9e5;
+  margin-top: 4px;
+  overflow: hidden;
+}
+.share-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--bottle);
+}
+.report-grid {
+  display: grid;
+  gap: 8px;
+}
+@media (min-width: 900px) {
+  .report-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+}
+
+/* ---------- Tabla de productos ---------- */
+.table-wrap {
+  overflow-x: auto;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+.report-table th,
+.report-table td {
+  padding: 10px 14px;
+  text-align: left;
+  border-top: 1px solid var(--line);
+  white-space: nowrap;
+}
+.report-table thead th {
+  border-top: 0;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+.report-table tbody th {
+  font-weight: 600;
+  white-space: normal;
+}
+.report-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.report-grid .section {
+  align-content: start;
+}

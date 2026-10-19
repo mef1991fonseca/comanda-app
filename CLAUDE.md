@@ -28,6 +28,11 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
     asocian a la caja abierta del local; el efectivo exige caja abierta.
   - Descuentos (`orders.discount_amount`): solo owner/manager/cashier (chequeo en `orders_before_update`).
   - Al cerrar una comanda, los ítems pendientes pasan a `sent` (venta de mostrador cobrada antes).
+  - `ingredients.stock_qty` está protegido (`ingredients_guard_stock`): solo lo cambia `apply_stock_movement`
+    (bandera `comanda.stock_write`); al crear un insumo arranca en 0 y el inicial se carga como movimiento
+    `adjustment` "Stock inicial". Conteo con RPC `stock_count(insumo, contado)`.
+  - Reportes: RPC `sales_report(local, desde, hasta)` (solo owner/manager) devuelve totales, por hora/día en
+    la zona del local, medios de pago, canales y productos con costo según receta y costo actual.
 - **Pagos se anulan** con `voided_at`, nunca se borran.
 - **Roles:** owner, manager, cashier, waiter, kitchen. Matriz en `supabase/migrations/20261019120300_rls_and_rpc.sql`.
   Helpers de RLS en schema `private` (`private.is_member`, `private.has_role`), fuera de la API.
@@ -62,7 +67,11 @@ Salón (mesas en vivo; mostaza = algo sin enviar o listo para servir) · Comanda
 mostrador) · Comanda (carta + pedido, envío a cocina, cancelar, marcar entregado, cobrar con
 `components/PaySheet.tsx`) · Cocina (KDS oscuro, tickets por comanda/estación, semáforo 10/20 min, aviso
 sonoro con Web Audio) · Caja (apertura, ingresos/retiros, resumen por medio de pago, cierre con arqueo;
-`lib/cash.ts` replica el cálculo de `close_cash_session`) · Carta y Modificadores (owner/manager) · Más.
+`lib/cash.ts` replica el cálculo de `close_cash_session`) · Carta y Modificadores (owner/manager; la ficha
+del producto incluye receta con costo y margen) · Stock (insumos, compra/merma/ajuste/conteo, historial,
+alertas de faltante) · Reportes (`components/BarChart.tsx`: una serie, un tono, tooltip y tabla) · Inicio
+(home de owner/manager: ventas de hoy, ahora, faltantes) · Más. Owner/manager tienen pestañas Inicio,
+Salón, Comandas, Caja, Más; Cocina para ellos está en Más.
 
 ## Pendientes conocidos
 
@@ -72,5 +81,7 @@ sonoro con Web Audio) · Caja (apertura, ingresos/retiros, resumen por medio de 
 - Validar mínimos/máximos de modificadores también en el servidor.
 - Caja: hoy se usa la primera caja activa del local; múltiples cajas y arqueo ciego quedan para más adelante.
 - Impresión de comandas y precuentas (ESC/POS) todavía no está.
+- El costo en reportes usa el costo actual de los insumos, no el histórico al momento de la venta.
+- Cantidades con decimales se escriben con coma (es-AR): `parseAmount` toma el punto como separador de miles.
 - Deploy público (Cloudflare Pages o similar) y dominio.
 - Confirmación de email: Supabase usa el SMTP por defecto (límite bajo); configurar SMTP propio antes de pilotos.

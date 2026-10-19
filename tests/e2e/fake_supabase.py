@@ -8,7 +8,9 @@ import base64
 import json
 import time
 import uuid
+from datetime import datetime
 from urllib.parse import urlparse, parse_qs
+from zoneinfo import ZoneInfo
 
 USER_ID = str(uuid.uuid4())
 EMAIL, PASSWORD, NAME = "qa-sprint0@comanda.test", "Prueba-2026!", "QA Sprint 0"
@@ -17,6 +19,7 @@ TABLES = [
     "restaurants", "restaurant_members", "profiles", "dining_areas", "tables", "stations",
     "categories", "products", "modifier_groups", "modifiers", "product_modifier_groups",
     "orders", "order_items", "payments", "payment_methods", "registers", "cash_sessions", "cash_movements",
+    "ingredients", "recipe_items", "stock_movements",
 ]
 
 DEFAULTS = {
@@ -33,6 +36,8 @@ DEFAULTS = {
     "cash_sessions": {"opening_amount": 0, "closed_at": None, "closed_by": None, "expected_cash": None,
                       "counted_cash": None, "notes": None},
     "cash_movements": {"reason": None},
+    "ingredients": {"unit": "unit", "cost_per_unit": 0, "stock_qty": 0, "min_stock": 0, "active": True},
+    "stock_movements": {"unit_cost": None, "order_id": None, "note": None},
     "order_items": {"status": "pending", "modifiers": [], "modifiers_total": 0, "quantity": 1, "notes": None,
                     "guest_number": None, "sent_at": None, "ready_at": None, "station_id": None},
 }
@@ -172,6 +177,82 @@ class FakeSupabase:
         if kind == "cash" and not row["cash_session_id"]:
             raise BusinessError("Abrí la caja para cobrar en efectivo")
 
+    def _apply_stock(self, mv):
+        ing = self._find("ingredients", mv["ingredient_id"])
+        if not ing:
+            raise BusinessError("Insumo inexistente")
+        ing["stock_qty"] = round(ing["stock_qty"] + mv["qty_delta"], 3)
+        if mv["reason"] == "purchase" and mv.get("unit_cost") is not None:
+            ing["cost_per_unit"] = mv["unit_cost"]
+
+    def _stock_for_order(self, order, sign):
+        totals = {}
+        for it in self.db["order_items"]:
+            if it["order_id"] != order["id"] or it["status"] == "cancelled":
+                continue
+            for r in self.db["recipe_items"]:
+                if r["product_id"] == it.get("product_id"):
+                    totals[r["ingredient_id"]] = totals.get(r["ingredient_id"], 0) + r["quantity"] * it["quantity"]
+        for ing_id, qty in totals.items():
+            mv = {"id": str(uuid.uuid4()), "restaurant_id": order["restaurant_id"], "ingredient_id": ing_id,
+                  "qty_delta": sign * qty, "reason": "sale" if sign < 0 else "sale_reversal", "order_id": order["id"],
+                  "note": None, "unit_cost": None, "created_at": now_iso()}
+            self._apply_stock(mv)
+            self.db["stock_movements"].append(mv)
+
+    def _stock_count(self, args):
+        ing = self._find("ingredients", args["p_ingredient"])
+        delta = round(args["p_counted"] - ing["stock_qty"], 3)
+        if delta:
+            mv = {"id": str(uuid.uuid4()), "restaurant_id": ing["restaurant_id"], "ingredient_id": ing["id"],
+                  "qty_delta": delta, "reason": "count", "note": args.get("p_note") or "Conteo de inventario",
+                  "unit_cost": None, "order_id": None, "created_at": now_iso()}
+            self._apply_stock(mv)
+            self.db["stock_movements"].append(mv)
+        return delta
+
+    def _sales_report(self, args):
+        parse = lambda x: datetime.fromisoformat(x.replace("Z", "+00:00"))
+        lo, hi = parse(args["p_from"]), parse(args["p_to"])
+        tz = ZoneInfo("America/Argentina/Buenos_Aires")
+        orders = [o for o in self.db["orders"] if o["restaurant_id"] == args["p_restaurant"] and o["status"] == "closed"
+                  and o.get("closed_at") and lo <= parse(o["closed_at"]) < hi]
+        ids = {o["id"] for o in orders}
+        pays = [p for p in self.db["payments"] if p["order_id"] in ids and not p.get("voided_at")]
+        items = [i for i in self.db["order_items"] if i["order_id"] in ids and i["status"] != "cancelled"]
+        ing_cost = {i["id"]: i["cost_per_unit"] for i in self.db["ingredients"]}
+        unit_cost = {}
+        for r in self.db["recipe_items"]:
+            unit_cost[r["product_id"]] = unit_cost.get(r["product_id"], 0) + r["quantity"] * ing_cost.get(r["ingredient_id"], 0)
+
+        def group(rows, keyf):
+            out = {}
+            for r in rows:
+                out.setdefault(keyf(r), []).append(r)
+            return out
+
+        local = lambda o: parse(o["closed_at"]).astimezone(tz)
+        methods = {m["id"]: m for m in self.db["payment_methods"]}
+        products = []
+        for (pid, name), rows in group(items, lambda i: (i.get("product_id"), i["name"])).items():
+            qty = sum(r["quantity"] for r in rows)
+            products.append({"product_id": pid, "name": name, "qty": qty, "revenue": sum(r["line_total"] for r in rows),
+                             "cost": round(qty * unit_cost.get(pid, 0), 2), "has_recipe": pid in unit_cost})
+        return {
+            "totals": {"orders": len(orders), "sales": sum(o["total"] for o in orders), "subtotal": sum(o["subtotal"] for o in orders),
+                       "discounts": sum(o["discount_amount"] for o in orders), "tips": sum(p["tip"] for p in pays)},
+            "by_hour": sorted([{"hour": h, "sales": sum(o["total"] for o in g), "orders": len(g)}
+                               for h, g in group(orders, lambda o: local(o).hour).items()], key=lambda x: x["hour"]),
+            "by_day": sorted([{"day": d, "sales": sum(o["total"] for o in g), "orders": len(g)}
+                              for d, g in group(orders, lambda o: local(o).date().isoformat()).items()], key=lambda x: x["day"]),
+            "by_payment": sorted([{"method": methods[m]["name"], "kind": methods[m]["kind"], "amount": sum(p["amount"] for p in g),
+                                   "tips": sum(p["tip"] for p in g), "count": len(g)}
+                                  for m, g in group(pays, lambda p: p["payment_method_id"]).items()], key=lambda x: -x["amount"]),
+            "by_type": sorted([{"type": t, "sales": sum(o["total"] for o in g), "orders": len(g)}
+                               for t, g in group(orders, lambda o: o["type"]).items()], key=lambda x: -x["sales"]),
+            "products": sorted(products, key=lambda x: -x["revenue"]),
+        }
+
     def _close_cash(self, args):
         sess = self._find("cash_sessions", args["p_session"])
         if not sess or sess.get("closed_at"):
@@ -201,6 +282,10 @@ class FakeSupabase:
                 raise BusinessError("Ya hay una caja abierta")
         if table == "payments":
             self._before_payment(row)
+        if table == "ingredients":
+            row["stock_qty"] = 0
+        if table == "stock_movements":
+            self._apply_stock(row)
         if table == "order_items":
             self._check_open(row["order_id"])
             self._enrich_item(row, True)
@@ -237,10 +322,13 @@ class FakeSupabase:
                     row["status"] = "open"
                     raise BusinessError("La comanda no está paga")
                 row["closed_at"] = now_iso()
+                self._stock_for_order(row, -1)
                 for i in self.db["order_items"]:
                     if i["order_id"] == row["id"] and i["status"] == "pending":
                         i["status"], i["sent_at"] = "sent", now_iso()
         else:
+            if table == "ingredients" and "stock_qty" in patch and patch["stock_qty"] != row["stock_qty"]:
+                raise BusinessError("El stock se modifica registrando una compra, merma, ajuste o conteo")
             row.update(patch)
         row["updated_at"] = now_iso()
 
@@ -305,6 +393,10 @@ class FakeSupabase:
 
         if path == "/rest/v1/rpc/create_restaurant":
             return reply(200, self._create_restaurant(json.loads(req.post_data or "{}")))
+        if path == "/rest/v1/rpc/stock_count":
+            return reply(200, self._stock_count(json.loads(req.post_data or "{}")))
+        if path == "/rest/v1/rpc/sales_report":
+            return reply(200, self._sales_report(json.loads(req.post_data or "{}")))
         if path == "/rest/v1/rpc/close_cash_session":
             try:
                 return reply(200, self._close_cash(json.loads(req.post_data or "{}")))

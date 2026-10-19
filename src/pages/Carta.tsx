@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase, errorMessage } from '../lib/supabase'
 import { useCurrentRestaurant } from '../lib/restaurant'
 import { useMenu, useProductsByCategory, type Category, type Menu, type ProductWithGroups } from '../lib/menu'
 import { formatMoney } from '../lib/format'
+import { recipeCost, unitShort, type Ingredient } from '../lib/stock'
 import { TopBar } from '../components/AppShell'
 import { Sheet } from '../components/Sheet'
 
@@ -203,8 +204,33 @@ function ProductSheet({
   const [favorite, setFavorite] = useState(product?.is_favorite ?? false)
   const [active, setActive] = useState(product?.active ?? true)
   const [groupIds, setGroupIds] = useState<Set<string>>(new Set(product?.groups.map((g) => g.id)))
+  const [ingredients, setIngredients] = useState<Ingredient[]>([])
+  const [recipe, setRecipe] = useState<{ ingredient_id: string; qty: string }[]>([])
+  const [recipeLoaded, setRecipeLoaded] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function load() {
+      const [ing, rec] = await Promise.all([
+        supabase.from('ingredients').select('*').eq('restaurant_id', restaurantId).eq('active', true).order('name'),
+        product
+          ? supabase.from('recipe_items').select('ingredient_id, quantity').eq('product_id', product.id)
+          : Promise.resolve({ data: [] as { ingredient_id: string; quantity: number }[], error: null }),
+      ])
+      setIngredients(ing.data ?? [])
+      setRecipe((rec.data ?? []).map((r) => ({ ingredient_id: r.ingredient_id, qty: String(r.quantity) })))
+      setRecipeLoaded(true)
+    }
+    void load()
+  }, [restaurantId, product])
+
+  const recipeLines = recipe
+    .map((r) => ({ ingredient_id: r.ingredient_id, quantity: Number(r.qty.replace(',', '.')) }))
+    .filter((r) => r.ingredient_id && Number.isFinite(r.quantity) && r.quantity > 0)
+  const cost = recipeCost(recipeLines, ingredients)
+  const priceValue = Number(price.replace(/\./g, '').replace(',', '.'))
+  const margin = cost !== null && Number.isFinite(priceValue) && priceValue > 0 ? Math.round(((priceValue - cost) / priceValue) * 100) : null
 
   function toggleGroup(id: string) {
     setGroupIds((cur) => {
@@ -260,6 +286,19 @@ function ProductSheet({
         .from('product_modifier_groups')
         .insert(toAdd.map((group_id, i) => ({ restaurant_id: restaurantId, product_id: productId, group_id, sort_order: i })))
       if (error) return fail(error)
+    }
+
+    // Receta: se reemplaza completa (las ventas pasadas no dependen de ella)
+    if (recipeLoaded) {
+      const del = await supabase.from('recipe_items').delete().eq('product_id', productId)
+      if (del.error) return fail(del.error)
+      const unique = new Map(recipeLines.map((l) => [l.ingredient_id, l.quantity]))
+      if (unique.size) {
+        const { error } = await supabase
+          .from('recipe_items')
+          .insert([...unique].map(([ingredient_id, quantity]) => ({ restaurant_id: restaurantId, product_id: productId, ingredient_id, quantity })))
+        if (error) return fail(error)
+      }
     }
     await onSaved()
   }
@@ -317,6 +356,58 @@ function ProductSheet({
             ))}
           </fieldset>
         )}
+
+        <fieldset className="fieldset">
+          <legend>Receta</legend>
+          {ingredients.length === 0 ? (
+            <p className="hint muted">Cargá insumos en Más → Stock para armar la receta y descontar stock con cada venta.</p>
+          ) : (
+            <>
+              {recipe.map((r, i) => {
+                const ing = ingredients.find((x) => x.id === r.ingredient_id)
+                return (
+                  <div key={i} className="recipe-row">
+                    <select
+                      aria-label={`Insumo ${i + 1}`}
+                      value={r.ingredient_id}
+                      onChange={(e) => setRecipe((cur) => cur.map((x, j) => (j === i ? { ...x, ingredient_id: e.target.value } : x)))}
+                    >
+                      <option value="">Elegí un insumo</option>
+                      {ingredients.map((x) => (
+                        <option key={x.id} value={x.id}>{x.name}</option>
+                      ))}
+                    </select>
+                    <input
+                      aria-label={`Cantidad del insumo ${i + 1}`}
+                      inputMode="decimal"
+                      value={r.qty}
+                      onChange={(e) => setRecipe((cur) => cur.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)))}
+                      placeholder="0"
+                    />
+                    <span className="unit">{ing ? unitShort(ing.unit) : ''}</span>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      aria-label={`Quitar insumo ${i + 1}`}
+                      onClick={() => setRecipe((cur) => cur.filter((_, j) => j !== i))}
+                    >
+                      ×
+                    </button>
+                  </div>
+                )
+              })}
+              <button type="button" className="link-btn" onClick={() => setRecipe((cur) => [...cur, { ingredient_id: '', qty: '' }])}>
+                Agregar insumo
+              </button>
+              {cost !== null && (
+                <p className="recipe-cost">
+                  Costo {formatMoney(cost)}
+                  {margin !== null && <span> · margen {margin}%</span>}
+                </p>
+              )}
+            </>
+          )}
+        </fieldset>
 
         <label className="check">
           <input type="checkbox" checked={favorite} onChange={(e) => setFavorite(e.target.checked)} />

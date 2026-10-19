@@ -49,3 +49,10 @@ export const IconMas = () => (
     <circle cx="19" cy="12" r="1.5" />
   </svg>
 )
+
+export const IconInicio = () => (
+  <svg {...base}>
+    <path d="M4 20V10l8-6 8 6v10" />
+    <path d="M9 20v-5h6v5" />
+  </svg>
+)

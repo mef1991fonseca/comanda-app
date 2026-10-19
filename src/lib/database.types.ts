@@ -154,6 +154,14 @@ export type Database = {
         Args: { p_name: string; p_tables?: number }
         Returns: string
       }
+      sales_report: {
+        Args: { p_restaurant: string; p_from: string; p_to: string }
+        Returns: Json
+      }
+      stock_count: {
+        Args: { p_ingredient: string; p_counted: number; p_note?: string }
+        Returns: number
+      }
     }
     Enums: {
       item_status: 'pending' | 'sent' | 'preparing' | 'ready' | 'delivered' | 'cancelled'

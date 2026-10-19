@@ -12,6 +12,9 @@ import { Modificadores } from './pages/Modificadores'
 import { Mas } from './pages/Mas'
 import { Cocina } from './pages/Cocina'
 import { Caja } from './pages/Caja'
+import { Inicio } from './pages/Inicio'
+import { Reportes } from './pages/Reportes'
+import { Stock } from './pages/Stock'
 
 export function App() {
   const { session, loading: authLoading } = useAuth()
@@ -38,6 +41,9 @@ export function App() {
         <Route path="/comanda/:orderId" element={<Comanda />} />
         {(current.role === 'owner' || current.role === 'manager') && (
           <>
+            <Route path="/inicio" element={<Inicio />} />
+            <Route path="/reportes" element={<Reportes />} />
+            <Route path="/stock" element={<Stock />} />
             <Route path="/carta" element={<Carta />} />
             <Route path="/carta/modificadores" element={<Modificadores />} />
           </>

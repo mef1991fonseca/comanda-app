@@ -24,7 +24,8 @@ def shot(page, name):
 
 with sync_playwright() as p:
     browser = p.chromium.launch(args=[f"--proxy-server={proxy}", "--proxy-bypass-list=127.0.0.1;localhost"] if proxy else [])
-    ctx = browser.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2, locale="es-AR")
+    ctx = browser.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2, locale="es-AR",
+                              timezone_id="America/Argentina/Buenos_Aires")
     page = ctx.new_page()
     fake = FakeSupabase()
     page.route("https://mosfrmkbutyqqckjnkkd.supabase.co/**", fake.handle)
@@ -183,7 +184,8 @@ with sync_playwright() as p:
     shot(page, "s1-07-comanda-tablet")
 
     # ---------- Sprint 2 · Cocina (en tablet) ----------
-    page.get_by_role("link", name="Cocina").click()
+    page.get_by_role("link", name="Más").click()
+    page.get_by_role("button", name="Pantalla de cocina").click()
     ticket = page.locator(".kds-ticket").filter(has_text="Mesa 3")
     expect(ticket).to_contain_text("Milanesa napolitana")
     expect(ticket).to_contain_text("Cancelado")  # el bife cancelado se ve tachado
@@ -253,7 +255,8 @@ with sync_playwright() as p:
     expect(pay).to_contain_text("Al cerrar, el producto sin enviar va a cocina.")
     pay.get_by_role("button", name="Cerrar comanda").click()
     expect(page.get_by_text("No hay comandas abiertas")).to_be_visible()
-    page.get_by_role("link", name="Cocina").click()
+    page.get_by_role("link", name="Más").click()
+    page.get_by_role("button", name="Pantalla de cocina").click()
     expect(page.locator(".kds-ticket").filter(has_text="Para llevar · Juan")).to_contain_text("Agua sin gas")
 
     # ---------- Caja: retiro y cierre con arqueo ----------
@@ -273,6 +276,100 @@ with sync_playwright() as p:
     expect(page.get_by_role("heading", name="La caja está cerrada")).to_be_visible()
     expect(page.get_by_text("Cierres anteriores")).to_be_visible()
     shot(page, "s2-04-caja-cerrada")
+
+    # ---------- Sprint 3 · Stock ----------
+    page.get_by_role("link", name="Más").click()
+    page.get_by_role("button", name="Stock").click()
+    expect(page.get_by_text("Todavía no cargaste insumos")).to_be_visible()
+
+    def new_ingredient(name, unit, stock, minimum, cost):
+        page.get_by_role("button", name="Nuevo insumo").click()
+        page.get_by_label("Nombre").fill(name)
+        page.get_by_label("Se mide en").select_option(label=unit)
+        page.get_by_label("Stock actual").fill(stock)
+        page.get_by_label("Mínimo").fill(minimum)
+        page.get_by_label("Costo por").fill(cost)
+        page.get_by_role("button", name="Guardar insumo").click()
+        expect(page.get_by_role("button", name=name)).to_be_visible()
+
+    new_ingredient("Muzzarella", "Gramos", "2000", "2500", "8")
+    new_ingredient("Carne vacuna", "Kilos", "5", "2", "9000")
+    expect(page.locator(".stock-alert")).to_contain_text("1 insumo")  # muzzarella arranca debajo del mínimo
+
+    page.get_by_role("button", name="Muzzarella").click()
+    sheet = page.get_by_role("dialog")
+    page.get_by_label("Cantidad (g)").fill("1000")
+    page.get_by_label("Costo total").fill("9000")
+    sheet.get_by_role("button", name="Registrar compra").click()
+    expect(sheet.locator(".sheet-head")).to_contain_text("3.000 g")
+    expect(sheet).to_contain_text("$ 9 por g")
+    sheet.get_by_role("button", name="Merma").click()
+    page.get_by_label("Cantidad (g)").fill("200")
+    page.get_by_label("Motivo").fill("Vencida")
+    sheet.get_by_role("button", name="Registrar merma").click()
+    expect(sheet.locator(".sheet-head")).to_contain_text("2.800 g")
+    sheet.get_by_role("button", name="Conteo").click()
+    page.get_by_label("Cantidad contada (g)").fill("2700")
+    sheet.get_by_role("button", name="Registrar conteo").click()
+    expect(sheet.locator(".sheet-head")).to_contain_text("2.700 g")
+    expect(sheet).to_contain_text("Conteo")
+    expect(sheet).to_contain_text("-100 g")
+    shot(page, "s3-01-insumo")
+    sheet.get_by_role("button", name="Cerrar", exact=True).click()
+    expect(page.locator(".stock-alert")).to_have_count(0)  # 2700 supera el mínimo de 2500
+
+    # ---------- Receta de la milanesa ----------
+    page.get_by_role("link", name="Más").click()
+    page.get_by_role("button", name="Carta").click()
+    page.get_by_role("button", name="Milanesa napolitana").click()
+    page.get_by_role("button", name="Agregar insumo").click()
+    page.get_by_label("Insumo 1", exact=True).select_option(label="Muzzarella")
+    page.get_by_label("Cantidad del insumo 1").fill("150")
+    page.get_by_role("button", name="Agregar insumo").click()
+    page.get_by_label("Insumo 2", exact=True).select_option(label="Carne vacuna")
+    page.get_by_label("Cantidad del insumo 2").fill("0,2")
+    expect(page.locator(".recipe-cost")).to_contain_text("Costo $ 3.150")  # 150 g x $9 + 0,2 kg x $9.000
+    expect(page.locator(".recipe-cost")).to_contain_text("margen 75%")
+    shot(page, "s3-02-receta")
+    page.get_by_role("button", name="Guardar producto").click()
+
+    # ---------- Venta que descuenta stock ----------
+    page.get_by_role("link", name="Caja").click()
+    page.get_by_label("Efectivo inicial").fill("10000")
+    page.get_by_role("button", name="Abrir caja").click()
+    page.get_by_role("link", name="Salón").click()
+    page.get_by_role("button", name="Mesa 1, libre").click()
+    page.get_by_role("button", name="Abrir mesa y cargar pedido").click()
+    page.get_by_role("button", name="Favoritos").click()
+    page.get_by_role("button", name="Milanesa napolitana $ 12.500").click()
+    page.get_by_role("button", name="Milanesa napolitana $ 12.500").click()
+    page.get_by_role("button", name="Ver pedido").click()
+    page.get_by_role("button", name="Cobrar · $ 25.000").click()
+    pay = page.get_by_role("dialog", name="Cobrar")
+    pay.get_by_role("button", name="Registrar pago · $ 25.000").click()
+    pay.get_by_role("button", name="Cerrar comanda").click()
+    expect(page.get_by_role("button", name="Mesa 1, libre")).to_be_visible()
+
+    # ---------- Inicio del dueño ----------
+    page.get_by_role("link", name="Inicio").click()
+    expect(page.locator(".kpi-main")).to_contain_text("$ 49.500")  # 22.500 + 2.000 + 25.000
+    expect(page.locator(".kpis")).to_contain_text("3")
+    expect(page.get_by_text("Faltantes de stock")).to_be_visible()
+    expect(page.locator(".list-row").filter(has_text="Muzzarella")).to_contain_text("2.400 g")  # 2.700 - 2 x 150
+    shot(page, "s3-03-inicio")
+
+    # ---------- Reportes ----------
+    page.get_by_role("link", name="Ver reportes").click()
+    expect(page.get_by_text("Ventas por hora")).to_be_visible()
+    row = page.locator(".report-table tbody tr").filter(has_text="Milanesa napolitana")
+    expect(row).to_contain_text("$ 50.000")
+    expect(row).to_contain_text("75%")
+    expect(page.locator(".report-table tbody tr").filter(has_text="Agua sin gas")).to_contain_text("Sin receta")
+    expect(page.locator(".share-list").first).to_contain_text("Efectivo")
+    shot(page, "s3-04-reportes")
+    page.set_viewport_size({"width": 1180, "height": 820})
+    shot(page, "s3-05-reportes-tablet")
+    page.set_viewport_size({"width": 390, "height": 844})
 
     page.get_by_role("link", name="Más").click()
     page.get_by_role("button", name="Cerrar sesión").click()

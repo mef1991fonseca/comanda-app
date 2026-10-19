@@ -49,7 +49,19 @@ export function Mas() {
             <div className="list">
               <button className="list-row" onClick={() => navigate('/carta')}>
                 <span>Carta</span>
-                <span className="muted">Categorías, productos y modificadores</span>
+                <span className="muted">Productos, recetas y modificadores</span>
+              </button>
+              <button className="list-row" onClick={() => navigate('/stock')}>
+                <span>Stock</span>
+                <span className="muted">Insumos, compras, mermas y conteos</span>
+              </button>
+              <button className="list-row" onClick={() => navigate('/reportes')}>
+                <span>Reportes</span>
+                <span className="muted">Ventas, medios de pago y productos</span>
+              </button>
+              <button className="list-row" onClick={() => navigate('/cocina')}>
+                <span>Pantalla de cocina</span>
+                <span className="muted">Pedidos en preparación</span>
               </button>
             </div>
           </section>
