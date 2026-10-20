@@ -17,7 +17,7 @@ Nombre provisorio.
 | 7 | Cobro con QR de Mercado Pago (modo prueba) | Listo |
 | 8 | Factura electrónica ARCA (homologación) con notas de crédito | Listo |
 | 9 | Clientes y cuenta corriente | Listo |
-| 10 | Proveedores, compras y cuenta corriente con proveedores | Próximo |
+| 10 | Proveedores, compras y gastos con cuenta corriente | Listo |
 
 ## Correr el proyecto
 

@@ -74,6 +74,13 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
   (`payments_account_movement`). Cobro de deuda con RPC `customer_payment` (owner/manager/cashier; en efectivo
   entra a la caja abierta como `cash_movements` 'in'). Saldos en la vista `customer_balances` (security_invoker).
   Pantallas: Más → Clientes, ficha `/clientes/:id`, cliente de la comanda en Opciones; la factura toma sus datos.
+- **Proveedores, compras y gastos:** `suppliers`, `purchases` (+ `purchase_items`) con categoría de gasto
+  (`expense_category`) y `supplier_movements` (+ le debemos / − pagamos; vista `supplier_balances`). Todo se
+  escribe por RPC: `register_purchase(jsonb)` (owner/manager; renglones con insumo generan `stock_movements`
+  'purchase' con costo unitario = importe/cantidad; el total puede sumar impuestos y otros cargos; opcional pago en
+  el momento), `supplier_payment` (owner/manager/cashier; efectivo sale de la caja abierta como retiro) y
+  `cancel_purchase` (devuelve stock y deuda; el costo del insumo no vuelve atrás). Pantallas: Más → Compras y
+  gastos (`/compras`, `/compras/nueva`, `/proveedores/:id`).
 - **Impresión:** `/imprimir/precuenta/:id` y `/imprimir/cocina/:id` (`pages/Imprimir.tsx`), tickets de 80 mm con
   la impresión del navegador (`@page size: 80mm`). Sirve con cualquier impresora instalada en el equipo; la
   impresión directa ESC/POS sin diálogo sigue pendiente.
