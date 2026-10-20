@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { errorMessage } from '../lib/supabase'
 import { useCurrentRestaurant } from '../lib/restaurant'
@@ -22,6 +22,8 @@ import { Sheet } from '../components/Sheet'
 import { PaySheet } from '../components/PaySheet'
 import { OrderActions } from '../components/OrderActions'
 import { useTeam, shortName } from '../lib/team'
+import { supabase } from '../lib/supabase'
+import type { Customer } from '../lib/customers'
 
 const FAVORITES = '__favoritos__'
 
@@ -42,6 +44,12 @@ export function Comanda() {
   const [options, setOptions] = useState(false)
   const { online } = useSync()
   const team = useTeam(restaurant.id)
+  const [customer, setCustomer] = useState<Customer | null>(null)
+  const customerId = order?.customer_id ?? null
+  useEffect(() => {
+    if (!customerId) return setCustomer(null)
+    void supabase.from('customers').select('*').eq('id', customerId).maybeSingle().then(({ data }) => setCustomer(data))
+  }, [customerId])
 
   const canSell = ['owner', 'manager', 'cashier', 'waiter'].includes(role)
   const isOpen = order?.status === 'open'
@@ -160,6 +168,7 @@ export function Comanda() {
             {orderNumberLabel(order)}
             {!isOpen && ` · ${order.status === 'closed' ? 'cerrada' : 'anulada'}`}
             {waiterName && ` · ${shortName(waiterName)}`}
+            {customer && ` · ${customer.name}`}
             {order.guests ? ` · ${order.guests} ${order.guests === 1 ? 'comensal' : 'comensales'}` : ''}
           </span>
         </div>
@@ -268,6 +277,7 @@ export function Comanda() {
           order={order}
           payments={payments}
           items={items}
+          customer={customer}
           role={role}
           pendingItems={pendingUnits}
           onClose={() => setPaying(false)}

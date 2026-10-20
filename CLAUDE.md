@@ -67,6 +67,13 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
   ítems, recalcula el destino, suma comensales y anula el origen ("Unida a la comanda #N"); no une comandas con
   pagos. En la app: botón Opciones de la comanda (`components/OrderActions.tsx`), mozo en las mesas del salón y
   filtro "Mis mesas" para mozos. Dividir la cuenta (en partes o por productos) solo sugiere el monto del pago.
+- **Clientes y cuenta corriente:** `customers` (doc para facturar, límite de cuenta) y `customer_movements`
+  (+ debe / − pagó; nadie los escribe directo). Medio de pago `account` ("Cuenta corriente", trigger
+  `restaurants_add_account_method` en locales nuevos): exige `orders.customer_id`, respeta el límite, no admite
+  propina (`payments_xaccount_check`) y genera el cargo; anular el pago genera la reversa
+  (`payments_account_movement`). Cobro de deuda con RPC `customer_payment` (owner/manager/cashier; en efectivo
+  entra a la caja abierta como `cash_movements` 'in'). Saldos en la vista `customer_balances` (security_invoker).
+  Pantallas: Más → Clientes, ficha `/clientes/:id`, cliente de la comanda en Opciones; la factura toma sus datos.
 - **Impresión:** `/imprimir/precuenta/:id` y `/imprimir/cocina/:id` (`pages/Imprimir.tsx`), tickets de 80 mm con
   la impresión del navegador (`@page size: 80mm`). Sirve con cualquier impresora instalada en el equipo; la
   impresión directa ESC/POS sin diálogo sigue pendiente.

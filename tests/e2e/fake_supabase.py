@@ -19,10 +19,12 @@ TABLES = [
     "restaurants", "restaurant_members", "profiles", "dining_areas", "tables", "stations",
     "categories", "products", "modifier_groups", "modifiers", "product_modifier_groups",
     "orders", "order_items", "payments", "payment_methods", "registers", "cash_sessions", "cash_movements",
-    "ingredients", "recipe_items", "stock_movements", "restaurant_invites", "mp_charges", "fiscal_settings", "invoices",
+    "ingredients", "recipe_items", "stock_movements", "restaurant_invites", "mp_charges", "fiscal_settings", "invoices", "customers", "customer_movements", "customer_balances",
 ]
 
 DEFAULTS = {
+    "customers": {"active": True, "credit_limit": None, "doc_type": None, "doc_number": None, "iva_condition": 5,
+                  "phone": None, "email": None, "notes": None},
     "categories": {"active": True, "sort_order": 0, "parent_id": None},
     "products": {"active": True, "sort_order": 0, "is_favorite": False, "description": None, "category_id": None,
                  "station_id": None, "price": 0, "sku": None, "image_url": None},
@@ -31,7 +33,7 @@ DEFAULTS = {
     "product_modifier_groups": {"sort_order": 0},
     "orders": {"type": "dine_in", "status": "open", "table_id": None, "customer_name": None, "guests": None,
                "notes": None, "subtotal": 0, "discount_amount": 0, "total": 0, "paid_total": 0,
-               "cash_session_id": None, "closed_at": None, "cancelled_reason": None},
+               "cash_session_id": None, "closed_at": None, "cancelled_reason": None, "customer_id": None},
     "payments": {"tip": 0, "cash_session_id": None, "reference": None, "voided_at": None, "voided_by": None},
     "cash_sessions": {"opening_amount": 0, "closed_at": None, "closed_by": None, "expected_cash": None,
                       "counted_cash": None, "notes": None},
@@ -290,6 +292,15 @@ class FakeSupabase:
                 raise BusinessError("Ya hay una caja abierta")
         if table == "payments":
             self._before_payment(row)
+            method = self._find("payment_methods", row["payment_method_id"])
+            if method and method["kind"] == "account":
+                order = self._find("orders", row["order_id"])
+                if not order.get("customer_id"):
+                    raise BusinessError("Para cobrar a cuenta corriente, asigná un cliente a la comanda")
+                self.db["customer_movements"].append({"id": str(uuid.uuid4()), "restaurant_id": row["restaurant_id"],
+                    "customer_id": order["customer_id"], "kind": "charge", "amount": row["amount"], "order_id": order["id"],
+                    "payment_id": row["id"], "payment_method_id": method["id"], "cash_movement_id": None, "note": None,
+                    "created_by": USER_ID, "created_at": now_iso()})
         if table == "ingredients":
             row["stock_qty"] = 0
         if table == "restaurant_invites":
@@ -494,7 +505,8 @@ class FakeSupabase:
         self.db["registers"].append({"id": str(uuid.uuid4()), "restaurant_id": rid, "name": "Caja principal",
                                      "active": True, "created_at": now_iso()})
         for i, (name, kind) in enumerate([("Efectivo", "cash"), ("Débito", "debit"), ("Crédito", "credit"),
-                                          ("Transferencia", "transfer"), ("Mercado Pago", "mercadopago")]):
+                                          ("Transferencia", "transfer"), ("Mercado Pago", "mercadopago"),
+                                          ("Cuenta corriente", "account")]):
             self.db["payment_methods"].append({"id": str(uuid.uuid4()), "restaurant_id": rid, "name": name, "kind": kind,
                                                "sort_order": i, "active": True})
         area = str(uuid.uuid4())
@@ -541,6 +553,16 @@ class FakeSupabase:
 
         if path == "/rest/v1/rpc/create_restaurant":
             return reply(200, self._create_restaurant(json.loads(req.post_data or "{}")))
+        if path == "/rest/v1/rpc/customer_payment":
+            a = json.loads(req.post_data or "{}")
+            bal = sum(m["amount"] for m in self.db["customer_movements"] if m["customer_id"] == a["p_customer"])
+            if a["p_amount"] > bal + 0.009:
+                return reply(400, {"code": "P0001", "message": f"El pago supera la deuda ({bal})"})
+            c = self._find("customers", a["p_customer"])
+            self.db["customer_movements"].append({"id": str(uuid.uuid4()), "restaurant_id": c["restaurant_id"], "customer_id": c["id"],
+                "kind": "payment", "amount": -a["p_amount"], "order_id": None, "payment_id": None, "payment_method_id": a["p_method"],
+                "cash_movement_id": None, "note": a.get("p_note"), "created_by": USER_ID, "created_at": now_iso()})
+            return reply(200, bal - a["p_amount"])
         if path == "/rest/v1/rpc/merge_orders":
             try:
                 return reply(200, self._merge_orders(json.loads(req.post_data or "{}")))
@@ -588,6 +610,10 @@ class FakeSupabase:
                                                           "access-control-expose-headers": "content-range",
                                                           "content-range": f"0-{max(n - 1, 0)}/{n}"}, body="")
             if method == "GET":
+                if table == "customer_balances":
+                    rows = [{"id": c["id"], "restaurant_id": c["restaurant_id"],
+                             "balance": sum(m["amount"] for m in self.db["customer_movements"] if m["customer_id"] == c["id"])}
+                            for c in self.db["customers"]]
                 result = [r for r in rows if self._match(r, filters)]
                 if table == "restaurant_members" and "restaurant:restaurants" in qs.get("select", [""])[0]:
                     result = [{"role": r["role"], "restaurant": self._find("restaurants", r["restaurant_id"])} for r in result]

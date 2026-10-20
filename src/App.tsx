@@ -20,6 +20,7 @@ import { Equipo } from './pages/Equipo'
 import { Facturacion } from './pages/Facturacion'
 import { Factura } from './pages/Factura'
 import { Imprimir } from './pages/Imprimir'
+import { Clientes, Cliente } from './pages/Clientes'
 import { Invitacion } from './pages/Invitacion'
 import { pendingInvite } from './lib/invites'
 
@@ -59,6 +60,12 @@ export function App() {
             <Route path="/carta/modificadores" element={<Modificadores />} />
             <Route path="/equipo" element={<Equipo />} />
             <Route path="/facturacion" element={<Facturacion />} />
+          </>
+        )}
+        {['owner', 'manager', 'cashier'].includes(current.role) && (
+          <>
+            <Route path="/clientes" element={<Clientes />} />
+            <Route path="/clientes/:customerId" element={<Cliente />} />
           </>
         )}
         <Route path="/cocina" element={<Cocina />} />

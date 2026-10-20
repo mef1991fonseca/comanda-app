@@ -7,9 +7,12 @@ import type { TeamMember } from '../lib/team'
 import type { Tables } from '../lib/database.types'
 import { Sheet } from './Sheet'
 import { useNavigate } from 'react-router-dom'
+import { useCustomers } from '../lib/customers'
+import { CustomerForm } from './CustomerForm'
+import { useCurrentRestaurant } from '../lib/restaurant'
 
 type Table = Tables<'tables'>
-type View = 'menu' | 'move' | 'merge' | 'waiter'
+type View = 'menu' | 'move' | 'merge' | 'waiter' | 'customer' | 'new-customer'
 
 /** Opciones de una mesa abierta: pasar a otra mesa, unir mesas, mozo y comensales. */
 export function OrderActions({
@@ -30,6 +33,11 @@ export function OrderActions({
   const rid = order.restaurant_id
   const navigate = useNavigate()
   const dineIn = order.type === 'dine_in'
+  const { role } = useCurrentRestaurant()
+  const canCreateCustomer = ['owner', 'manager', 'cashier'].includes(role)
+  const { customers, reload: reloadCustomers } = useCustomers(rid)
+  const [customerQuery, setCustomerQuery] = useState('')
+  const customer = customers.find((c) => c.id === order.customer_id)
   const [view, setView] = useState<View>('menu')
   const [tables, setTables] = useState<Table[]>([])
   const [open, setOpen] = useState<Order[]>([])
@@ -76,7 +84,16 @@ export function OrderActions({
     if (done) onClose()
   }
 
-  const title = { menu: `Opciones · ${label}`, move: 'Pasar a otra mesa', merge: 'Unir con otra mesa', waiter: 'Mozo de la mesa' }[view]
+  const title = {
+    menu: `Opciones · ${label}`,
+    move: 'Pasar a otra mesa',
+    merge: 'Unir con otra mesa',
+    waiter: 'Mozo de la mesa',
+    customer: 'Cliente de la comanda',
+    'new-customer': 'Nuevo cliente',
+  }[view]
+  const q = customerQuery.trim().toLocaleLowerCase('es')
+  const matches = customers.filter((c) => c.active && (!q || c.name.toLocaleLowerCase('es').includes(q) || (c.doc_number ?? '').includes(q)))
 
   return (
     <Sheet title={title} onClose={onClose}>
@@ -102,6 +119,10 @@ export function OrderActions({
               </button>
             </>
           )}
+          <button className="list-row" onClick={() => setView('customer')}>
+            <span>Cliente</span>
+            <span className="muted">{customer?.name ?? 'Para facturar con sus datos o cargar a cuenta'}</span>
+          </button>
           <button className="list-row" onClick={() => setView('waiter')}>
             <span>Mozo</span>
             <span className="muted">{waiter?.name ?? 'Sin asignar'}</span>
@@ -199,14 +220,65 @@ export function OrderActions({
         </div>
       )}
 
+      {view === 'customer' && (
+        <>
+          <input
+            className="search"
+            type="search"
+            placeholder="Buscar cliente"
+            aria-label="Buscar cliente"
+            value={customerQuery}
+            onChange={(e) => setCustomerQuery(e.target.value)}
+          />
+          <div className="list">
+            {matches.slice(0, 30).map((c) => (
+              <button
+                key={c.id}
+                className="list-row"
+                disabled={busy}
+                aria-pressed={c.id === order.customer_id}
+                onClick={() => void run(() => updateOrder(order.id, { customer_id: c.id }, `${label}: cliente ${c.name}`))}
+              >
+                <span>{c.name}</span>
+                <span className={c.id === order.customer_id ? 'badge' : 'muted'}>
+                  {c.id === order.customer_id ? 'Asignado' : c.doc_number ?? ''}
+                </span>
+              </button>
+            ))}
+            {matches.length === 0 && <div className="list-row"><span className="muted">No hay clientes que coincidan.</span></div>}
+          </div>
+          <div className="sheet-actions">
+            {canCreateCustomer && (
+              <button className="btn btn-quiet" onClick={() => setView('new-customer')}>Nuevo cliente</button>
+            )}
+            {order.customer_id && (
+              <button className="btn btn-quiet" disabled={busy} onClick={() => void run(() => updateOrder(order.id, { customer_id: null }, `${label}: quitar cliente`))}>
+                Quitar cliente
+              </button>
+            )}
+          </div>
+        </>
+      )}
+
+      {view === 'new-customer' && (
+        <CustomerForm
+          restaurantId={rid}
+          onCancel={() => setView('customer')}
+          onSaved={(c) => {
+            void reloadCustomers()
+            void run(() => updateOrder(order.id, { customer_id: c.id }, `${label}: cliente ${c.name}`))
+          }}
+        />
+      )}
+
       {error && <div className="notice notice-error" role="alert">{error}</div>}
 
       <div className="sheet-actions">
         {view === 'menu' ? (
           <button className="btn btn-quiet" onClick={onClose}>Cerrar</button>
-        ) : (
+        ) : view !== 'new-customer' ? (
           <button className="btn btn-quiet" onClick={() => setView('menu')}>Volver</button>
-        )}
+        ) : null}
       </div>
     </Sheet>
   )

@@ -1,24 +1,29 @@
 import { useState } from 'react'
 import { formatMoney } from '../lib/format'
 import { issueInvoice, receiverConditionLabel, type Invoice } from '../lib/invoices'
+import type { Customer } from '../lib/customers'
 
 /** Emisión de la factura de una comanda cobrada: consumidor final o con DNI/CUIT. */
 export function InvoiceForm({
   orderId,
   total,
+  customer = null,
   onDone,
   onSkip,
 }: {
   orderId: string
   total: number
+  customer?: Customer | null
   onDone: (invoice: Invoice) => void
   onSkip: () => void
 }) {
-  const [withData, setWithData] = useState(false)
-  const [docType, setDocType] = useState<80 | 96>(96)
-  const [docNumber, setDocNumber] = useState('')
-  const [name, setName] = useState('')
-  const [condition, setCondition] = useState(1)
+  // Si la comanda tiene un cliente con documento, la factura sale con sus datos
+  const known = customer?.doc_type ? customer : null
+  const [withData, setWithData] = useState(Boolean(known))
+  const [docType, setDocType] = useState<80 | 96>((known?.doc_type as 80 | 96 | undefined) ?? 96)
+  const [docNumber, setDocNumber] = useState(known?.doc_number ?? '')
+  const [name, setName] = useState(customer?.name ?? '')
+  const [condition, setCondition] = useState(known?.doc_type === 80 && known.iva_condition !== 5 ? known.iva_condition : 1)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

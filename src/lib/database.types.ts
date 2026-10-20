@@ -64,8 +64,8 @@ export type Database = {
         Relationships: []
       }
       orders: {
-        Row: { cancelled_reason: string | null; cash_session_id: string | null; closed_at: Ts | null; created_at: Ts; created_by: string | null; customer_name: string | null; discount_amount: number; guests: number | null; id: string; notes: string | null; number: number | null; opened_at: Ts; paid_total: number; restaurant_id: string; status: Database['public']['Enums']['order_status']; subtotal: number; table_id: string | null; total: number; type: Database['public']['Enums']['order_type']; updated_at: Ts; waiter_id: string | null }
-        Insert: { cancelled_reason?: string | null; cash_session_id?: string | null; closed_at?: Ts | null; created_at?: Ts; created_by?: string | null; customer_name?: string | null; discount_amount?: number; guests?: number | null; id?: string; notes?: string | null; number?: number | null; opened_at?: Ts; paid_total?: number; restaurant_id: string; status?: Database['public']['Enums']['order_status']; subtotal?: number; table_id?: string | null; total?: number; type?: Database['public']['Enums']['order_type']; updated_at?: Ts; waiter_id?: string | null }
+        Row: { cancelled_reason: string | null; cash_session_id: string | null; closed_at: Ts | null; created_at: Ts; created_by: string | null; customer_id: string | null; customer_name: string | null; discount_amount: number; guests: number | null; id: string; notes: string | null; number: number | null; opened_at: Ts; paid_total: number; restaurant_id: string; status: Database['public']['Enums']['order_status']; subtotal: number; table_id: string | null; total: number; type: Database['public']['Enums']['order_type']; updated_at: Ts; waiter_id: string | null }
+        Insert: { cancelled_reason?: string | null; cash_session_id?: string | null; closed_at?: Ts | null; created_at?: Ts; created_by?: string | null; customer_id?: string | null; customer_name?: string | null; discount_amount?: number; guests?: number | null; id?: string; notes?: string | null; number?: number | null; opened_at?: Ts; paid_total?: number; restaurant_id: string; status?: Database['public']['Enums']['order_status']; subtotal?: number; table_id?: string | null; total?: number; type?: Database['public']['Enums']['order_type']; updated_at?: Ts; waiter_id?: string | null }
         Update: Partial<Database['public']['Tables']['orders']['Insert']>
         Relationships: []
       }
@@ -119,6 +119,18 @@ export type Database = {
           { foreignKeyName: 'restaurant_members_restaurant_id_fkey'; columns: ['restaurant_id']; isOneToOne: false; referencedRelation: 'restaurants'; referencedColumns: ['id'] },
         ]
       }
+      customers: {
+        Row: { active: boolean; created_at: Ts; credit_limit: number | null; doc_number: string | null; doc_type: number | null; email: string | null; id: string; iva_condition: number; name: string; notes: string | null; phone: string | null; restaurant_id: string; updated_at: Ts }
+        Insert: { active?: boolean; credit_limit?: number | null; doc_number?: string | null; doc_type?: number | null; email?: string | null; id?: string; iva_condition?: number; name: string; notes?: string | null; phone?: string | null; restaurant_id: string }
+        Update: Partial<Database['public']['Tables']['customers']['Insert']>
+        Relationships: []
+      }
+      customer_movements: {
+        Row: { amount: number; cash_movement_id: string | null; created_at: Ts; created_by: string | null; customer_id: string; id: string; kind: 'charge' | 'payment' | 'reversal'; note: string | null; order_id: string | null; payment_id: string | null; payment_method_id: string | null; restaurant_id: string }
+        Insert: { id?: string }
+        Update: { id?: string }
+        Relationships: []
+      }
       fiscal_settings: {
         Row: { activity_start: string | null; address: string; cuit: string; enabled: boolean; environment: string; gross_income: string | null; iva_condition: Database['public']['Enums']['iva_condition']; legal_name: string; point_of_sale: number; restaurant_id: string; updated_at: Ts }
         Insert: { activity_start?: string | null; address: string; cuit: string; enabled?: boolean; gross_income?: string | null; iva_condition: Database['public']['Enums']['iva_condition']; legal_name: string; point_of_sale: number; restaurant_id: string }
@@ -168,11 +180,20 @@ export type Database = {
         Relationships: []
       }
     }
-    Views: { [_ in never]: never }
+    Views: {
+      customer_balances: {
+        Row: { balance: number; id: string; last_movement_at: Ts | null; restaurant_id: string }
+        Relationships: []
+      }
+    }
     Functions: {
       accept_invite: {
         Args: { p_token: string }
         Returns: string
+      }
+      customer_payment: {
+        Args: { p_customer: string; p_amount: number; p_method: string; p_note?: string }
+        Returns: number
       }
       merge_orders: {
         Args: { p_target: string; p_source: string }
@@ -207,7 +228,7 @@ export type Database = {
       member_role: 'owner' | 'manager' | 'cashier' | 'waiter' | 'kitchen'
       order_status: 'open' | 'closed' | 'cancelled'
       order_type: 'dine_in' | 'counter' | 'takeaway' | 'delivery'
-      payment_kind: 'cash' | 'debit' | 'credit' | 'transfer' | 'mercadopago' | 'other'
+      payment_kind: 'cash' | 'debit' | 'credit' | 'transfer' | 'mercadopago' | 'other' | 'account'
       stock_reason: 'sale' | 'sale_reversal' | 'purchase' | 'adjustment' | 'waste' | 'count'
       stock_unit: 'unit' | 'g' | 'kg' | 'ml' | 'l'
     }

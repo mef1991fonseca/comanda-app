@@ -15,7 +15,9 @@ Nombre provisorio.
 | 5 | Publicación en Cloudflare Pages; equipo con invitaciones por link | Listo |
 | 6 | Operación de salón (mozo, pasar y unir mesas, comensales, dividir la cuenta) e impresión de precuenta y comanda | Listo |
 | 7 | Cobro con QR de Mercado Pago (modo prueba) | Listo |
-| 8 | Factura electrónica ARCA (homologación) | Listo |
+| 8 | Factura electrónica ARCA (homologación) con notas de crédito | Listo |
+| 9 | Clientes y cuenta corriente | Listo |
+| 10 | Proveedores, compras y cuenta corriente con proveedores | Próximo |
 
 ## Correr el proyecto
 

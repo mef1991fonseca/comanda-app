@@ -91,10 +91,16 @@ export function Mas() {
           </section>
         )}
 
-        {isAdmin && (
+        {(isAdmin || role === 'cashier') && (
           <section className="section">
             <h2>Cobros</h2>
             <div className="list">
+              <button className="list-row" onClick={() => navigate('/clientes')}>
+                <span>Clientes y cuentas corrientes</span>
+                <span className="muted">Fiado, cuentas de empresas y cobros</span>
+              </button>
+              {isAdmin && (
+              <>
               <button className="list-row" onClick={() => navigate('/facturacion')}>
                 <span>Facturación electrónica</span>
                 <span className="muted">Datos fiscales y facturas</span>
@@ -106,6 +112,8 @@ export function Mas() {
                 </span>
                 {mp?.startsWith('Conectado') && <span className="badge">Activo</span>}
               </div>
+              </>
+              )}
             </div>
           </section>
         )}

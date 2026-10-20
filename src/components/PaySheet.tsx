@@ -3,6 +3,7 @@ import { supabase, errorMessage } from '../lib/supabase'
 import { parseAmount, type PaymentMethod } from '../lib/cash'
 import { formatMoney } from '../lib/format'
 import type { Order, OrderItem, Payment } from '../lib/orders'
+import type { Customer } from '../lib/customers'
 import type { Enums } from '../lib/database.types'
 import { Sheet } from './Sheet'
 import { QrPanel } from './QrPanel'
@@ -21,6 +22,7 @@ export function PaySheet({
   order,
   payments,
   items = [],
+  customer = null,
   role,
   pendingItems,
   onClose,
@@ -30,6 +32,7 @@ export function PaySheet({
   order: Order
   payments: Payment[]
   items?: OrderItem[]
+  customer?: Customer | null
   role: Role
   pendingItems: number
   onClose: () => void
@@ -99,8 +102,9 @@ export function PaySheet({
   const method = methods.find((m) => m.id === methodId)
   const isCash = method?.kind === 'cash'
   const isMp = method?.kind === 'mercadopago'
+  const isAccount = method?.kind === 'account'
   const amountValue = parseAmount(amount)
-  const tipValue = !isMp && tip.trim() ? parseAmount(tip) : 0
+  const tipValue = !isMp && !isAccount && tip.trim() ? parseAmount(tip) : 0
   const receivedValue = received.trim() ? parseAmount(received) : NaN
   const change = isCash && Number.isFinite(receivedValue) ? receivedValue - amountValue - tipValue : null
 
@@ -181,6 +185,7 @@ export function PaySheet({
         <InvoiceForm
           orderId={order.id}
           total={order.total}
+          customer={customer}
           onDone={(inv) => navigate(`/factura/${inv.id}`, { replace: true })}
           onSkip={onClosedOrder}
         />
@@ -243,9 +248,12 @@ export function PaySheet({
             {cashOpen === false && (
               <div className="notice notice-info">La caja está cerrada: para cobrar en efectivo, abrila desde Caja.</div>
             )}
+            {!customer && methods.some((m) => m.kind === 'account') && (
+              <p className="muted">Para cargar a cuenta corriente, asigná un cliente en Opciones.</p>
+            )}
             <div className="method-chips" role="radiogroup" aria-label="Medio de pago">
               {methods.map((m) => {
-                const disabled = m.kind === 'cash' && cashOpen === false
+                const disabled = (m.kind === 'cash' && cashOpen === false) || (m.kind === 'account' && !customer)
                 return (
                   <button
                     key={m.id}
@@ -260,6 +268,7 @@ export function PaySheet({
                 )
               })}
             </div>
+            {isAccount && customer && <p className="muted">Se carga a la cuenta de {customer.name}.</p>}
             <div className="split">
               <span className="split-label">Dividir la cuenta</span>
               <div className="switcher three" role="group" aria-label="Dividir la cuenta">
@@ -309,7 +318,7 @@ export function PaySheet({
                 <label htmlFor="pay-amount">Monto</label>
                 <input id="pay-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
               </div>
-              {!isMp && (
+              {!isMp && !isAccount && (
                 <div className="field">
                   <label htmlFor="pay-tip">Propina</label>
                   <input id="pay-tip" inputMode="decimal" value={tip} onChange={(e) => setTip(e.target.value)} placeholder="0" />
@@ -351,7 +360,7 @@ export function PaySheet({
             </>
           ) : remaining > 0 ? (
             <button className="btn btn-primary" onClick={() => void addPayment()} disabled={busy || !method}>
-              Registrar pago{Number.isFinite(amountValue) && amountValue > 0 ? ` · ${formatMoney(amountValue)}` : ''}
+              {isAccount ? 'Cargar a cuenta' : 'Registrar pago'}{Number.isFinite(amountValue) && amountValue > 0 ? ` · ${formatMoney(amountValue)}` : ''}
             </button>
           ) : canInvoice ? (
             <>
