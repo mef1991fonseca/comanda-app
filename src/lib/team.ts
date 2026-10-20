@@ -11,6 +11,15 @@ export const shortName = (name: string) => {
   return last ? `${first} ${last[0]}.` : (first ?? '')
 }
 
+/** "Martín Fonseca" → "MF" (para el círculo del mozo en cada mesa). */
+export const initials = (name: string) =>
+  name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0]?.toLocaleUpperCase('es') ?? '')
+    .join('')
+
 /** Personas activas del local con su nombre (guardado en el dispositivo para usar sin conexión). */
 export function useTeam(restaurantId: string) {
   const [team, setTeam] = useState<TeamMember[]>([])

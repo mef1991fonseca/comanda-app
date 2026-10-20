@@ -7,7 +7,7 @@ import { formatElapsed, formatMoney, minutesSince } from '../lib/format'
 import type { Tables } from '../lib/database.types'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
-import { shortName, useTeam } from '../lib/team'
+import { initials, useTeam } from '../lib/team'
 import { TopBar } from '../components/AppShell'
 import { Sheet } from '../components/Sheet'
 
@@ -176,21 +176,21 @@ export function Salon() {
                     key={t.id}
                     className={`table-tile${order ? ' busy' : ''}${toSend || toServe ? ' waiting' : ''}`}
                     onClick={() => setSelected(t)}
-                    aria-label={`Mesa ${t.name}, ${order ? 'ocupada' : 'libre'}${toServe ? ', con platos listos' : toSend ? ', con pedido sin enviar' : ''}`}
+                    aria-label={`Mesa ${t.name}, ${order ? 'ocupada' : 'libre'}${toServe ? ', con platos listos' : toSend ? ', con pedido sin enviar' : ''}${order && nameOf(order.waiter_id) ? `, mozo ${nameOf(order.waiter_id)}` : ''}`}
                   >
                     <span className="num">{t.name}</span>
+                    {order && nameOf(order.waiter_id) && (
+                      <span className="tile-waiter" title={nameOf(order.waiter_id)!} aria-hidden="true">
+                        {initials(nameOf(order.waiter_id)!)}
+                      </span>
+                    )}
                     <span className="meta">
                       {order ? (
                         <>
                           <strong>{order.total > 0 ? formatMoney(order.total) : 'Sin pedidos'}</strong>
                           <br />
                           {toServe ? 'Listo para servir' : toSend ? 'Sin enviar' : formatElapsed(minutesSince(order.opened_at, now))}
-                          {nameOf(order.waiter_id) && (
-                            <>
-                              <br />
-                              <span className="tile-waiter">{shortName(nameOf(order.waiter_id)!)}</span>
-                            </>
-                          )}
+
                         </>
                       ) : (
                         `${t.seats} lugares`

@@ -592,6 +592,12 @@ with sync_playwright() as p:
     opts.get_by_role("button", name=__import__("re").compile("^Unir con otra mesa")).click()
     opts.get_by_role("button", name="Unir la mesa 11").click()
     expect(page.locator(".order-bar")).to_contain_text("$ 14.500")
+    page.get_by_role("link", name="Volver").click()
+    tile = page.get_by_role("button", name="Mesa 12, ocupada, mozo Pedro Gómez")
+    expect(tile.locator(".tile-waiter")).to_have_text("PG")
+    shot(page, "s8-06-salon-mozo")
+    tile.click()
+    page.get_by_role("button", name="Ver comanda").click()
 
     page.get_by_role("button", name="Opciones").click()
     opts.get_by_role("button", name=__import__("re").compile("^Imprimir precuenta")).click()

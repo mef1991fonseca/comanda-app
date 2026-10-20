@@ -1750,8 +1750,19 @@ a.btn {
   padding: 0 14px;
 }
 .tile-waiter {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
   font-size: 0.75rem;
-  opacity: 0.85;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: rgb(255 255 255 / 0.18);
+  color: #fff;
 }
 .switcher.compact-wide {
   max-width: 320px;
