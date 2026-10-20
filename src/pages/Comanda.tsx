@@ -339,6 +339,7 @@ function Ticket({
   onPay?: () => void
   offline: boolean
 }) {
+  const sentTotal = sent.filter((i) => i.status !== 'cancelled').reduce((s, i) => s + (i.line_total ?? 0), 0)
   return (
     <div className="ticket order-ticket">
       {pending.length === 0 && sent.length === 0 && <p className="muted">Todavía no hay productos. Elegilos de la carta.</p>}
@@ -380,8 +381,20 @@ function Ticket({
         </div>
       )}
 
+      {pending.length > 0 && sentTotal > 0 && (
+        <>
+          <div className="ticket-row ticket-sub">
+            <span>Ya en cocina</span>
+            <span>{formatMoney(sentTotal)}</span>
+          </div>
+          <div className="ticket-row ticket-sub">
+            <span>Por enviar</span>
+            <span>{formatMoney(pendingTotal)}</span>
+          </div>
+        </>
+      )}
       <div className="ticket-row ticket-total">
-        <span>Total</span>
+        <span>{pending.length > 0 && sentTotal > 0 ? 'Total de la mesa' : 'Total'}</span>
         <span className="amount">{formatMoney(total)}</span>
       </div>
 

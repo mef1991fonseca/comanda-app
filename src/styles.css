@@ -1855,3 +1855,7 @@ a.btn {
   .print-page { padding: 0; background: #fff; display: block; }
   .receipt { box-shadow: none; width: auto; padding: 0; }
 }
+.ticket-sub {
+  font-size: 0.9375rem;
+  color: var(--ink-soft);
+}
