@@ -119,6 +119,12 @@ export type Database = {
           { foreignKeyName: 'restaurant_members_restaurant_id_fkey'; columns: ['restaurant_id']; isOneToOne: false; referencedRelation: 'restaurants'; referencedColumns: ['id'] },
         ]
       }
+      mp_charges: {
+        Row: { amount: number; created_at: Ts; created_by: string | null; error: string | null; expires_at: Ts | null; id: string; mp_order_id: string | null; mp_payment_id: string | null; order_id: string; payment_id: string | null; qr_data: string | null; restaurant_id: string; status: Database['public']['Enums']['mp_charge_status']; updated_at: Ts }
+        Insert: { id?: string }
+        Update: { id?: string }
+        Relationships: []
+      }
       restaurant_invites: {
         Row: { accepted_at: Ts | null; accepted_by: string | null; created_at: Ts; created_by: string; expires_at: Ts; id: string; restaurant_id: string; revoked_at: Ts | null; role: Database['public']['Enums']['member_role']; token: string }
         Insert: { accepted_at?: Ts | null; accepted_by?: string | null; created_at?: Ts; created_by?: string; expires_at?: Ts; id?: string; restaurant_id: string; revoked_at?: Ts | null; role: Database['public']['Enums']['member_role']; token?: string }
@@ -179,6 +185,7 @@ export type Database = {
     }
     Enums: {
       item_status: 'pending' | 'sent' | 'preparing' | 'ready' | 'delivered' | 'cancelled'
+      mp_charge_status: 'created' | 'processed' | 'canceled' | 'expired' | 'refunded' | 'failed'
       member_role: 'owner' | 'manager' | 'cashier' | 'waiter' | 'kitchen'
       order_status: 'open' | 'closed' | 'cancelled'
       order_type: 'dine_in' | 'counter' | 'takeaway' | 'delivery'

@@ -1562,3 +1562,70 @@ a.btn {
 .report-grid .section {
   align-content: start;
 }
+
+/* ---------- Cobro con QR de Mercado Pago ---------- */
+.qr-panel {
+  display: grid;
+  gap: 14px;
+  justify-items: stretch;
+}
+.qr-amount {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.qr-code {
+  justify-self: center;
+  width: min(72vw, 300px);
+  aspect-ratio: 1;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 12px;
+}
+.qr-code svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.qr-help {
+  text-align: center;
+  color: var(--ink-soft);
+}
+.qr-wait {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-weight: 600;
+  color: var(--ink);
+  min-height: 48px;
+  border-radius: var(--r-sm);
+  background: var(--mustard-soft, #fbf0d4);
+}
+.qr-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--mustard);
+  animation: qr-pulse 1.2s ease-in-out infinite;
+}
+@keyframes qr-pulse {
+  50% { opacity: 0.25; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qr-dot { animation: none; }
+}
+.qr-result {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 24px 16px;
+  border-radius: var(--r-md);
+  background: var(--bottle-soft);
+  color: var(--bottle-deep);
+}
+.qr-result-title {
+  font-weight: 600;
+  font-size: 1.125rem;
+}

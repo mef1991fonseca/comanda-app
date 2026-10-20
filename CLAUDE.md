@@ -41,6 +41,15 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
   RPC `accept_invite(token)` y se previsualiza con `invite_preview(token)` (security definer, solo authenticated).
   El token se guarda en el dispositivo (`lib/invites.ts`) hasta iniciar sesión; el signup redirige al mismo link.
   Trigger `restaurant_members_keep_owner`: un local nunca se queda sin dueño activo. Pantalla `pages/Equipo.tsx`.
+- **Mercado Pago (QR dinámico, API de Orders):** edge function `supabase/functions/mercadopago` (verify_jwt off;
+  valida la sesión con `auth.getUser` y la pertenencia al local con la service role). Acciones `status`, `create`,
+  `refresh`, `cancel` y `/mercadopago/webhook`. Secretos: `MP_ACCESS_TOKEN` (hoy el de prueba, de un usuario
+  vendedor de prueba) y opcional `MP_WEBHOOK_SECRET`. Crea sola la sucursal y caja del local (`mp_pos`; city_name
+  tiene que ser un barrio válido de MP, nombres sin tildes). Cada QR es un `mp_charges` (el cliente solo lee); el
+  pago lo registra `mp_charge_settle` (solo service_role) una sola vez; si la comanda ya no lo admite, devuelve
+  'refund' y la función reembolsa. El estado siempre se toma de `GET /v1/orders/{id}`, nunca del webhook.
+  La app sigue el cobro por realtime + consulta cada 4 s (`useCharge`). Desplegar con `deploy_edge_function`.
+  `pg_net` está habilitado para probar la función desde SQL.
 - **Alta de local:** RPC `create_restaurant(nombre, mesas)` crea el local con dueño, estaciones Cocina/Barra,
   Caja principal, medios de pago y un salón con N mesas.
 - **Realtime** publicado en `orders`, `order_items`, `payments` (respeta RLS).
@@ -102,5 +111,7 @@ Salón, Comandas, Caja, Más; Cocina para ellos está en Más.
 - Impresión de comandas y precuentas (ESC/POS) todavía no está.
 - El costo en reportes usa el costo actual de los insumos, no el histórico al momento de la venta.
 - Cantidades con decimales se escriben con coma (es-AR): `parseAmount` toma el punto como separador de miles.
+- Mercado Pago: hoy usa una sola cuenta (la de prueba de ALTech) para todos los locales. Para producción falta
+  OAuth para que cada local vincule su cuenta, y cargar la dirección real del local en la sucursal de MP.
 - Dominio propio (hoy el subdominio de pages.dev).
 - Confirmación de email: Supabase usa el SMTP por defecto (límite bajo); configurar SMTP propio antes de pilotos.

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase, errorMessage } from '../lib/supabase'
 import { clearCache } from '../lib/offline'
 import { useSync } from '../lib/useSync'
+import { mpStatus } from '../lib/mercadopago'
 import { useAuth } from '../lib/auth'
 import { useCurrentRestaurant, useRestaurant } from '../lib/restaurant'
 import { roleLabel } from '../lib/format'
@@ -36,6 +37,15 @@ export function Mas() {
   }, [restaurant.id])
 
   const { pending } = useSync()
+  const isAdmin = role === 'owner' || role === 'manager'
+  const [mp, setMp] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!isAdmin || !navigator.onLine) return
+    void mpStatus().then(({ data, error }) =>
+      setMp(error ?? (data?.connected ? `Conectado${data.test ? ' · cuenta de prueba' : ''}` : 'Sin conectar')),
+    )
+  }, [isAdmin])
 
   async function signOut() {
     if (
@@ -77,6 +87,21 @@ export function Mas() {
                 <span>Pantalla de cocina</span>
                 <span className="muted">Pedidos en preparación</span>
               </button>
+            </div>
+          </section>
+        )}
+
+        {isAdmin && (
+          <section className="section">
+            <h2>Cobros</h2>
+            <div className="list">
+              <div className="list-row">
+                <span className="product-line">
+                  <span>Mercado Pago (QR)</span>
+                  <span className="product-sub">{mp ?? 'Revisando…'}</span>
+                </span>
+                {mp?.startsWith('Conectado') && <span className="badge">Activo</span>}
+              </div>
             </div>
           </section>
         )}

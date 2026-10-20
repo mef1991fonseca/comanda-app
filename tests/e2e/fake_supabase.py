@@ -19,7 +19,7 @@ TABLES = [
     "restaurants", "restaurant_members", "profiles", "dining_areas", "tables", "stations",
     "categories", "products", "modifier_groups", "modifiers", "product_modifier_groups",
     "orders", "order_items", "payments", "payment_methods", "registers", "cash_sessions", "cash_movements",
-    "ingredients", "recipe_items", "stock_movements", "restaurant_invites",
+    "ingredients", "recipe_items", "stock_movements", "restaurant_invites", "mp_charges",
 ]
 
 DEFAULTS = {
@@ -67,6 +67,7 @@ class FakeSupabase:
         self.db = {t: [] for t in TABLES}
         self.db["profiles"].append({"id": USER_ID, "full_name": NAME})
         self.counter = 0
+        self.mp_pay = False  # la prueba lo prende para "pagar" el QR desde el celular del cliente
 
     # ---------- filtros PostgREST ----------
     @staticmethod
@@ -349,6 +350,43 @@ class FakeSupabase:
             row.update(patch)
         row["updated_at"] = now_iso()
 
+    # ---------- Edge function mercadopago ----------
+    def _mercadopago(self, body):
+        action = body.get("action")
+        if action == "status":
+            return {"connected": True, "nickname": "TESTUSER123", "test": True}
+        if action == "create":
+            order = self._find("orders", body["order_id"])
+            if not order or order["status"] != "open":
+                raise BusinessError("Solo se puede cobrar una comanda abierta.")
+            if body["amount"] > order["total"] - order["paid_total"] + 0.009:
+                raise BusinessError("El monto supera lo que falta cobrar.")
+            for c in self.db["mp_charges"]:
+                if c["order_id"] == order["id"] and c["status"] == "created":
+                    c["status"] = "canceled"
+            ch = {"id": str(uuid.uuid4()), "restaurant_id": order["restaurant_id"], "order_id": order["id"],
+                  "amount": body["amount"], "status": "created", "mp_order_id": "ORDFAKE" + uuid.uuid4().hex[:10],
+                  "mp_payment_id": None, "payment_id": None, "error": None, "created_by": USER_ID,
+                  "qr_data": "00020101021243650016com.mercadolibre020130636" + uuid.uuid4().hex + "5204970053030325802AR5909Test Test6004CABA6304ABCD",
+                  "expires_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 900)),
+                  "created_at": now_iso(), "updated_at": now_iso()}
+            self.db["mp_charges"].append(ch)
+            return {"charge": ch}
+        ch = self._find("mp_charges", body.get("charge_id"))
+        if not ch:
+            raise BusinessError("No se encontró el cobro.")
+        if action == "cancel" and ch["status"] == "created":
+            ch["status"] = "canceled"
+        if action == "refresh" and ch["status"] == "created" and self.mp_pay:
+            method = next(m for m in self.db["payment_methods"] if m["restaurant_id"] == ch["restaurant_id"] and m["kind"] == "mercadopago")
+            pay = {"restaurant_id": ch["restaurant_id"], "order_id": ch["order_id"], "payment_method_id": method["id"],
+                   "amount": ch["amount"], "reference": "QR Mercado Pago PAYFAKE"}
+            self._before_insert("payments", pay)
+            self.db["payments"].append(pay)
+            self._after_write("payments", pay)
+            ch.update({"status": "processed", "payment_id": pay["id"], "mp_payment_id": "PAYFAKE"})
+        return {"charge": ch}
+
     # ---------- RPC ----------
     def _invite(self, token):
         return next((i for i in self.db["restaurant_invites"] if i["token"] == token), None)
@@ -450,6 +488,11 @@ class FakeSupabase:
             return reply(200, self._stock_count(json.loads(req.post_data or "{}")))
         if path == "/rest/v1/rpc/sales_report":
             return reply(200, self._sales_report(json.loads(req.post_data or "{}")))
+        if path == "/functions/v1/mercadopago":
+            try:
+                return reply(200, self._mercadopago(json.loads(req.post_data or "{}")))
+            except BusinessError as e:
+                return reply(400, {"error": str(e)})
         if path in ("/rest/v1/rpc/invite_preview", "/rest/v1/rpc/accept_invite"):
             fn = self._invite_preview if path.endswith("preview") else self._accept_invite
             try:

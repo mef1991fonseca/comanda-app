@@ -14,7 +14,8 @@ Nombre provisorio.
 | 4 | Modo sin conexión: pedidos, envío a cocina y KDS sin internet, con sincronización y aviso de conflictos | Listo |
 | 5 | Publicación en Cloudflare Pages; equipo con invitaciones por link | Listo |
 | 6 | Impresión de comandas y precuentas, operación de salón (pasar de mesa, dividir cuenta) | Próximo |
-| 7 | Factura electrónica ARCA y Mercado Pago (modo prueba) | Esperando credenciales |
+| 7 | Cobro con QR de Mercado Pago (modo prueba) | Listo |
+| 8 | Factura electrónica ARCA (homologación) | Esperando CUIL |
 
 ## Correr el proyecto
 

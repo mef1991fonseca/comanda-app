@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, errorMessage } from '../lib/supabase'
 import { parseAmount, type PaymentMethod } from '../lib/cash'
 import { formatMoney } from '../lib/format'
 import type { Order, Payment } from '../lib/orders'
 import type { Enums } from '../lib/database.types'
 import { Sheet } from './Sheet'
+import { QrPanel } from './QrPanel'
+import { createQrCharge, type MpCharge } from '../lib/mercadopago'
 
 type Role = Enums<'member_role'>
 
@@ -40,6 +42,7 @@ export function PaySheet({
   const [discountPct, setDiscountPct] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [qr, setQr] = useState<MpCharge | null>(null)
 
   const canDiscount = ['owner', 'manager', 'cashier'].includes(role)
   const canVoid = ['owner', 'manager'].includes(role)
@@ -69,8 +72,9 @@ export function PaySheet({
 
   const method = methods.find((m) => m.id === methodId)
   const isCash = method?.kind === 'cash'
+  const isMp = method?.kind === 'mercadopago'
   const amountValue = parseAmount(amount)
-  const tipValue = tip.trim() ? parseAmount(tip) : 0
+  const tipValue = !isMp && tip.trim() ? parseAmount(tip) : 0
   const receivedValue = received.trim() ? parseAmount(received) : NaN
   const change = isCash && Number.isFinite(receivedValue) ? receivedValue - amountValue - tipValue : null
 
@@ -117,6 +121,19 @@ export function PaySheet({
     }
   }
 
+  async function showQr() {
+    if (!Number.isFinite(amountValue) || amountValue <= 0) return setError('Ingresá el monto a cobrar.')
+    if (amountValue > remaining + 0.009) return setError(`El monto supera lo que falta cobrar (${formatMoney(remaining)}).`)
+    setBusy(true)
+    setError(null)
+    const { data, error } = await createQrCharge(order.id, amountValue)
+    setBusy(false)
+    if (error || !data) return setError(error ?? 'No se pudo generar el QR.')
+    setQr(data.charge)
+  }
+
+  const onQrPaid = useCallback(() => void onChanged(), [onChanged])
+
   async function voidPayment(p: Payment) {
     await run(() => supabase.from('payments').update({ voided_at: new Date().toISOString() }).eq('id', p.id))
   }
@@ -126,7 +143,19 @@ export function PaySheet({
   }
 
   return (
-    <Sheet title="Cobrar" aside={<span className="price">{formatMoney(order.total)}</span>} onClose={onClose}>
+    <Sheet title={qr ? 'Cobrar con QR' : 'Cobrar'} aside={<span className="price">{formatMoney(order.total)}</span>} onClose={onClose}>
+      {qr ? (
+        <QrPanel
+          key={qr.id}
+          initial={qr}
+          onPaid={onQrPaid}
+          onBack={() => setQr(null)}
+          onRetry={() => {
+            setQr(null)
+            void showQr()
+          }}
+        />
+      ) : (
       <div className="form">
         <div className="ticket">
           <div className="ticket-row"><span>Subtotal</span><span>{formatMoney(order.subtotal)}</span></div>
@@ -196,10 +225,12 @@ export function PaySheet({
                 <label htmlFor="pay-amount">Monto</label>
                 <input id="pay-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
               </div>
-              <div className="field">
-                <label htmlFor="pay-tip">Propina</label>
-                <input id="pay-tip" inputMode="decimal" value={tip} onChange={(e) => setTip(e.target.value)} placeholder="0" />
-              </div>
+              {!isMp && (
+                <div className="field">
+                  <label htmlFor="pay-tip">Propina</label>
+                  <input id="pay-tip" inputMode="decimal" value={tip} onChange={(e) => setTip(e.target.value)} placeholder="0" />
+                </div>
+              )}
             </div>
             {isCash && (
               <div className="field">
@@ -225,7 +256,16 @@ export function PaySheet({
         {error && <div className="notice notice-error" role="alert">{error}</div>}
 
         <div className="sheet-actions">
-          {remaining > 0 ? (
+          {remaining > 0 && isMp ? (
+            <>
+              <button className="btn btn-primary" onClick={() => void showQr()} disabled={busy}>
+                Mostrar QR{Number.isFinite(amountValue) && amountValue > 0 ? ` · ${formatMoney(amountValue)}` : ''}
+              </button>
+              <button className="btn btn-quiet" onClick={() => void addPayment()} disabled={busy}>
+                Ya lo cobré con otro QR: registrar a mano
+              </button>
+            </>
+          ) : remaining > 0 ? (
             <button className="btn btn-primary" onClick={() => void addPayment()} disabled={busy || !method}>
               Registrar pago{Number.isFinite(amountValue) && amountValue > 0 ? ` · ${formatMoney(amountValue)}` : ''}
             </button>
@@ -237,6 +277,7 @@ export function PaySheet({
           <button className="btn btn-quiet" onClick={onClose}>Volver al pedido</button>
         </div>
       </div>
+      )}
     </Sheet>
   )
 }
