@@ -95,6 +95,10 @@ export function Mas() {
           <section className="section">
             <h2>Cobros</h2>
             <div className="list">
+              <button className="list-row" onClick={() => navigate('/facturacion')}>
+                <span>Facturación electrónica</span>
+                <span className="muted">Datos fiscales y facturas</span>
+              </button>
               <div className="list-row">
                 <span className="product-line">
                   <span>Mercado Pago (QR)</span>

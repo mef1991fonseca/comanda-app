@@ -17,6 +17,8 @@ import { Inicio } from './pages/Inicio'
 import { Reportes } from './pages/Reportes'
 import { Stock } from './pages/Stock'
 import { Equipo } from './pages/Equipo'
+import { Facturacion } from './pages/Facturacion'
+import { Factura } from './pages/Factura'
 import { Invitacion } from './pages/Invitacion'
 import { pendingInvite } from './lib/invites'
 
@@ -41,6 +43,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/nuevo-local" element={<Onboarding first={false} />} />
+      <Route path="/factura/:invoiceId" element={<Factura />} />
       <Route element={<AppShell />}>
         <Route path="/salon" element={<Salon />} />
         <Route path="/comandas" element={<Comandas />} />
@@ -53,6 +56,7 @@ export function App() {
             <Route path="/carta" element={<Carta />} />
             <Route path="/carta/modificadores" element={<Modificadores />} />
             <Route path="/equipo" element={<Equipo />} />
+            <Route path="/facturacion" element={<Facturacion />} />
           </>
         )}
         <Route path="/cocina" element={<Cocina />} />

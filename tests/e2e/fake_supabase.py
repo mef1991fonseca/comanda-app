@@ -19,7 +19,7 @@ TABLES = [
     "restaurants", "restaurant_members", "profiles", "dining_areas", "tables", "stations",
     "categories", "products", "modifier_groups", "modifiers", "product_modifier_groups",
     "orders", "order_items", "payments", "payment_methods", "registers", "cash_sessions", "cash_movements",
-    "ingredients", "recipe_items", "stock_movements", "restaurant_invites", "mp_charges",
+    "ingredients", "recipe_items", "stock_movements", "restaurant_invites", "mp_charges", "fiscal_settings", "invoices",
 ]
 
 DEFAULTS = {
@@ -271,7 +271,10 @@ class FakeSupabase:
         return sess
 
     def _before_insert(self, table, row):
-        row.setdefault("id", str(uuid.uuid4()))
+        if table != "fiscal_settings":
+            row.setdefault("id", str(uuid.uuid4()))
+        else:
+            row.setdefault("environment", "homologacion")
         row.setdefault("created_at", now_iso())
         row.setdefault("updated_at", now_iso())
         for k, v in DEFAULTS.get(table, {}).items():
@@ -387,6 +390,32 @@ class FakeSupabase:
             ch.update({"status": "processed", "payment_id": pay["id"], "mp_payment_id": "PAYFAKE"})
         return {"charge": ch}
 
+    # ---------- Edge function arca ----------
+    def _arca(self, body):
+        if body.get("action") != "invoice":
+            raise BusinessError("No autorizado.")
+        order = self._find("orders", body["order_id"])
+        if not order or order["status"] != "closed":
+            raise BusinessError("Cobrá la comanda antes de facturar.")
+        fs = next((f for f in self.db["fiscal_settings"] if f["restaurant_id"] == order["restaurant_id"]), None)
+        if not fs or not fs.get("enabled"):
+            raise BusinessError("Activá la facturación en Más → Facturación.")
+        r = body.get("receiver") or {}
+        ri = fs["iva_condition"] == "responsable_inscripto"
+        cond = r.get("condition", 5) if r.get("doc_type") == 80 else 5
+        tipo = (1 if cond == 1 else 6) if ri else 11
+        total = order["total"]
+        net = round(total / 1.21, 2) if ri else total
+        n = 1 + max([i["number"] for i in self.db["invoices"] if i["cbte_type"] == tipo] or [0])
+        inv = {"id": str(uuid.uuid4()), "restaurant_id": order["restaurant_id"], "order_id": order["id"], "environment": "homologacion",
+               "cbte_type": tipo, "point_of_sale": fs["point_of_sale"], "number": n, "issued_on": time.strftime("%Y-%m-%d"),
+               "doc_type": r.get("doc_type", 99), "doc_number": r.get("doc_number", "0"), "receiver_name": r.get("name"),
+               "receiver_condition": cond, "total": total, "net": net, "vat": round(total - net, 2), "cae": "76123456789012",
+               "cae_due": time.strftime("%Y-%m-%d", time.gmtime(time.time() + 10 * 86400)), "status": "authorized",
+               "error": None, "notes": None, "created_by": USER_ID, "created_at": now_iso()}
+        self.db["invoices"].append(inv)
+        return {"invoice": inv}
+
     # ---------- RPC ----------
     def _invite(self, token):
         return next((i for i in self.db["restaurant_invites"] if i["token"] == token), None)
@@ -488,6 +517,11 @@ class FakeSupabase:
             return reply(200, self._stock_count(json.loads(req.post_data or "{}")))
         if path == "/rest/v1/rpc/sales_report":
             return reply(200, self._sales_report(json.loads(req.post_data or "{}")))
+        if path == "/functions/v1/arca":
+            try:
+                return reply(200, self._arca(json.loads(req.post_data or "{}")))
+            except BusinessError as e:
+                return reply(400, {"error": str(e)})
         if path == "/functions/v1/mercadopago":
             try:
                 return reply(200, self._mercadopago(json.loads(req.post_data or "{}")))

@@ -50,6 +50,15 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
   'refund' y la función reembolsa. El estado siempre se toma de `GET /v1/orders/{id}`, nunca del webhook.
   La app sigue el cobro por realtime + consulta cada 4 s (`useCharge`). Desplegar con `deploy_edge_function`.
   `pg_net` está habilitado para probar la función desde SQL.
+- **ARCA (factura electrónica, hoy homologación):** edge function `supabase/functions/arca` (node-forge).
+  Modelo de proveedor: un certificado de ALTech firma por todos los locales; cada local delega WSFE a ese CUIT
+  y factura con su CUIT (`fiscal_settings`, editable solo por owner; `environment` lo cambia solo soporte).
+  Clave privada, certificado, CUIT del proveedor y `arca_admin_key` en Vault (`arca_get_secret`/`arca_put_secret`,
+  solo service_role). Acciones de admin con header `x-admin-key` (se llaman desde SQL con `net.http_post`):
+  `csr`, `set_cert`, `test`. Acción con sesión `invoice`: Factura C (monotributo) o B/A con IVA 21 %
+  (responsable inscripto); pide el último número, reintenta ante 10016 y guarda el CAE en `invoices`
+  (el cliente solo lee). Ticket WSAA cacheado en `arca_tokens` (ARCA no da otro mientras esté vigente).
+  Pantallas: Más → Facturación, cierre "Cerrar y facturar" en el cobro, `/factura/:id` imprimible con QR fiscal.
 - **Alta de local:** RPC `create_restaurant(nombre, mesas)` crea el local con dueño, estaciones Cocina/Barra,
   Caja principal, medios de pago y un salón con N mesas.
 - **Realtime** publicado en `orders`, `order_items`, `payments` (respeta RLS).
@@ -113,5 +122,7 @@ Salón, Comandas, Caja, Más; Cocina para ellos está en Más.
 - Cantidades con decimales se escriben con coma (es-AR): `parseAmount` toma el punto como separador de miles.
 - Mercado Pago: hoy usa una sola cuenta (la de prueba de ALTech) para todos los locales. Para producción falta
   OAuth para que cada local vincule su cuenta, y cargar la dirección real del local en la sucursal de MP.
+- ARCA: notas de crédito (anular una factura), pasar a producción (certificado de producción y delegación de
+  cada local) y facturar desde reportes/comandas viejas.
 - Dominio propio (hoy el subdominio de pages.dev).
 - Confirmación de email: Supabase usa el SMTP por defecto (límite bajo); configurar SMTP propio antes de pilotos.

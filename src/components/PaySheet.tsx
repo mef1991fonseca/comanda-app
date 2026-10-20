@@ -6,6 +6,8 @@ import type { Order, Payment } from '../lib/orders'
 import type { Enums } from '../lib/database.types'
 import { Sheet } from './Sheet'
 import { QrPanel } from './QrPanel'
+import { InvoiceForm } from './InvoiceForm'
+import { useNavigate } from 'react-router-dom'
 import { createQrCharge, type MpCharge } from '../lib/mercadopago'
 
 type Role = Enums<'member_role'>
@@ -43,18 +45,24 @@ export function PaySheet({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [qr, setQr] = useState<MpCharge | null>(null)
+  const [fiscalOn, setFiscalOn] = useState(false)
+  const [invoicing, setInvoicing] = useState(false)
+  const navigate = useNavigate()
 
   const canDiscount = ['owner', 'manager', 'cashier'].includes(role)
   const canVoid = ['owner', 'manager'].includes(role)
+  const canInvoice = fiscalOn && ['owner', 'manager', 'cashier'].includes(role)
   const remaining = Math.max(order.total - order.paid_total, 0)
   const live = payments.filter((p) => !p.voided_at)
 
   useEffect(() => {
     async function load() {
-      const [m, s] = await Promise.all([
+      const [m, s, f] = await Promise.all([
         supabase.from('payment_methods').select('*').eq('restaurant_id', order.restaurant_id).eq('active', true).order('sort_order'),
         supabase.from('cash_sessions').select('id').eq('restaurant_id', order.restaurant_id).is('closed_at', null).limit(1),
+        supabase.from('fiscal_settings').select('enabled').eq('restaurant_id', order.restaurant_id).maybeSingle(),
       ])
+      setFiscalOn(Boolean(f.data?.enabled))
       const list = m.data ?? []
       const open = (s.data ?? []).length > 0
       setMethods(list)
@@ -138,13 +146,27 @@ export function PaySheet({
     await run(() => supabase.from('payments').update({ voided_at: new Date().toISOString() }).eq('id', p.id))
   }
 
-  async function closeOrder() {
-    if (await run(() => supabase.from('orders').update({ status: 'closed' }).eq('id', order.id))) onClosedOrder()
+  async function closeOrder(withInvoice: boolean) {
+    if (await run(() => supabase.from('orders').update({ status: 'closed' }).eq('id', order.id))) {
+      if (withInvoice) setInvoicing(true)
+      else onClosedOrder()
+    }
   }
 
   return (
-    <Sheet title={qr ? 'Cobrar con QR' : 'Cobrar'} aside={<span className="price">{formatMoney(order.total)}</span>} onClose={onClose}>
-      {qr ? (
+    <Sheet
+      title={invoicing ? 'Factura' : qr ? 'Cobrar con QR' : 'Cobrar'}
+      aside={<span className="price">{formatMoney(order.total)}</span>}
+      onClose={invoicing ? onClosedOrder : onClose}
+    >
+      {invoicing ? (
+        <InvoiceForm
+          orderId={order.id}
+          total={order.total}
+          onDone={(inv) => navigate(`/factura/${inv.id}`, { replace: true })}
+          onSkip={onClosedOrder}
+        />
+      ) : qr ? (
         <QrPanel
           key={qr.id}
           initial={qr}
@@ -269,8 +291,17 @@ export function PaySheet({
             <button className="btn btn-primary" onClick={() => void addPayment()} disabled={busy || !method}>
               Registrar pago{Number.isFinite(amountValue) && amountValue > 0 ? ` · ${formatMoney(amountValue)}` : ''}
             </button>
+          ) : canInvoice ? (
+            <>
+              <button className="btn btn-primary" onClick={() => void closeOrder(true)} disabled={busy}>
+                Cerrar y facturar
+              </button>
+              <button className="btn btn-quiet" onClick={() => void closeOrder(false)} disabled={busy}>
+                Cerrar sin factura
+              </button>
+            </>
           ) : (
-            <button className="btn btn-primary" onClick={() => void closeOrder()} disabled={busy}>
+            <button className="btn btn-primary" onClick={() => void closeOrder(false)} disabled={busy}>
               Cerrar comanda
             </button>
           )}

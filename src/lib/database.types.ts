@@ -119,6 +119,18 @@ export type Database = {
           { foreignKeyName: 'restaurant_members_restaurant_id_fkey'; columns: ['restaurant_id']; isOneToOne: false; referencedRelation: 'restaurants'; referencedColumns: ['id'] },
         ]
       }
+      fiscal_settings: {
+        Row: { activity_start: string | null; address: string; cuit: string; enabled: boolean; environment: string; gross_income: string | null; iva_condition: Database['public']['Enums']['iva_condition']; legal_name: string; point_of_sale: number; restaurant_id: string; updated_at: Ts }
+        Insert: { activity_start?: string | null; address: string; cuit: string; enabled?: boolean; gross_income?: string | null; iva_condition: Database['public']['Enums']['iva_condition']; legal_name: string; point_of_sale: number; restaurant_id: string }
+        Update: Partial<Database['public']['Tables']['fiscal_settings']['Insert']>
+        Relationships: []
+      }
+      invoices: {
+        Row: { cae: string | null; cae_due: string | null; cbte_type: number; created_at: Ts; created_by: string | null; doc_number: string; doc_type: number; environment: string; error: string | null; id: string; issued_on: string; net: number; notes: string | null; number: number | null; order_id: string; point_of_sale: number; receiver_condition: number; receiver_name: string | null; restaurant_id: string; status: Database['public']['Enums']['invoice_status']; total: number; vat: number }
+        Insert: { id?: string }
+        Update: { id?: string }
+        Relationships: []
+      }
       mp_charges: {
         Row: { amount: number; created_at: Ts; created_by: string | null; error: string | null; expires_at: Ts | null; id: string; mp_order_id: string | null; mp_payment_id: string | null; order_id: string; payment_id: string | null; qr_data: string | null; restaurant_id: string; status: Database['public']['Enums']['mp_charge_status']; updated_at: Ts }
         Insert: { id?: string }
@@ -185,6 +197,8 @@ export type Database = {
     }
     Enums: {
       item_status: 'pending' | 'sent' | 'preparing' | 'ready' | 'delivered' | 'cancelled'
+      iva_condition: 'monotributo' | 'responsable_inscripto'
+      invoice_status: 'pending' | 'authorized' | 'rejected'
       mp_charge_status: 'created' | 'processed' | 'canceled' | 'expired' | 'refunded' | 'failed'
       member_role: 'owner' | 'manager' | 'cashier' | 'waiter' | 'kitchen'
       order_status: 'open' | 'closed' | 'cancelled'
