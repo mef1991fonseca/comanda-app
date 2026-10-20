@@ -36,6 +36,11 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
 - **Pagos se anulan** con `voided_at`, nunca se borran.
 - **Roles:** owner, manager, cashier, waiter, kitchen. Matriz en `supabase/migrations/20261019120300_rls_and_rpc.sql`.
   Helpers de RLS en schema `private` (`private.is_member`, `private.has_role`), fuera de la API.
+- **Equipo e invitaciones:** `restaurant_invites` = link de un solo uso (`/invitacion/<token>`, vence a los 7 días)
+  con rol fijo; lo crean owner/manager (manager no invita dueños) y solo se anula (`revoked_at`). Se acepta con
+  RPC `accept_invite(token)` y se previsualiza con `invite_preview(token)` (security definer, solo authenticated).
+  El token se guarda en el dispositivo (`lib/invites.ts`) hasta iniciar sesión; el signup redirige al mismo link.
+  Trigger `restaurant_members_keep_owner`: un local nunca se queda sin dueño activo. Pantalla `pages/Equipo.tsx`.
 - **Alta de local:** RPC `create_restaurant(nombre, mesas)` crea el local con dueño, estaciones Cocina/Barra,
   Caja principal, medios de pago y un salón con N mesas.
 - **Realtime** publicado en `orders`, `order_items`, `payments` (respeta RLS).
@@ -85,12 +90,12 @@ sonoro con Web Audio) · Caja (apertura, ingresos/retiros, resumen por medio de 
 `lib/cash.ts` replica el cálculo de `close_cash_session`) · Carta y Modificadores (owner/manager; la ficha
 del producto incluye receta con costo y margen) · Stock (insumos, compra/merma/ajuste/conteo, historial,
 alertas de faltante) · Reportes (`components/BarChart.tsx`: una serie, un tono, tooltip y tabla) · Inicio
-(home de owner/manager: ventas de hoy, ahora, faltantes) · Más. Owner/manager tienen pestañas Inicio,
+(home de owner/manager: ventas de hoy, ahora, faltantes) · Equipo (personas, roles, links de invitación) ·
+Invitación (aceptar) · Más. Owner/manager tienen pestañas Inicio,
 Salón, Comandas, Caja, Más; Cocina para ellos está en Más.
 
 ## Pendientes conocidos
 
-- Invitar miembros al equipo (necesita RPC que busque usuario por email o invitación por link).
 - Sin conexión no se puede cobrar (los pagos dependen de la caja abierta y del saldo en el servidor).
 - Validar mínimos/máximos de modificadores también en el servidor.
 - Caja: hoy se usa la primera caja activa del local; múltiples cajas y arqueo ciego quedan para más adelante.

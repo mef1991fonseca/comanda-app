@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './lib/auth'
 import { useRestaurant } from './lib/restaurant'
@@ -15,13 +16,18 @@ import { Caja } from './pages/Caja'
 import { Inicio } from './pages/Inicio'
 import { Reportes } from './pages/Reportes'
 import { Stock } from './pages/Stock'
+import { Equipo } from './pages/Equipo'
+import { Invitacion } from './pages/Invitacion'
+import { pendingInvite } from './lib/invites'
 
 export function App() {
   const { session, loading: authLoading } = useAuth()
   const { loading, error, current, reload } = useRestaurant()
+  const [invite, setInvite] = useState(pendingInvite)
 
   if (authLoading) return <div className="center-screen">Cargando…</div>
   if (!session) return <Login />
+  if (invite) return <Invitacion token={invite} onDone={() => setInvite(null)} />
   if (loading && !current) return <div className="center-screen">Cargando tu local…</div>
   if (error && !current)
     return (
@@ -46,6 +52,7 @@ export function App() {
             <Route path="/stock" element={<Stock />} />
             <Route path="/carta" element={<Carta />} />
             <Route path="/carta/modificadores" element={<Modificadores />} />
+            <Route path="/equipo" element={<Equipo />} />
           </>
         )}
         <Route path="/cocina" element={<Cocina />} />

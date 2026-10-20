@@ -19,7 +19,7 @@ TABLES = [
     "restaurants", "restaurant_members", "profiles", "dining_areas", "tables", "stations",
     "categories", "products", "modifier_groups", "modifiers", "product_modifier_groups",
     "orders", "order_items", "payments", "payment_methods", "registers", "cash_sessions", "cash_movements",
-    "ingredients", "recipe_items", "stock_movements",
+    "ingredients", "recipe_items", "stock_movements", "restaurant_invites",
 ]
 
 DEFAULTS = {
@@ -98,6 +98,9 @@ class FakeSupabase:
                     return False
             elif op == "not" and val == "is.null":
                 if cur is None:
+                    return False
+            elif op == "gt":
+                if cur is None or str(cur) <= val:
                     return False
             elif op == "gte":
                 if cur is None or str(cur) < val:
@@ -284,6 +287,14 @@ class FakeSupabase:
             self._before_payment(row)
         if table == "ingredients":
             row["stock_qty"] = 0
+        if table == "restaurant_invites":
+            mine = next((m for m in self.db["restaurant_members"]
+                         if m["restaurant_id"] == row["restaurant_id"] and m["user_id"] == USER_ID and m["active"]), None)
+            if not mine or mine["role"] not in ("owner", "manager") or (mine["role"] == "manager" and row["role"] == "owner"):
+                raise BusinessError("new row violates row-level security policy")
+            row.update({"token": uuid.uuid4().hex[:24], "created_by": USER_ID, "accepted_at": None, "accepted_by": None,
+                        "revoked_at": None,
+                        "expires_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 7 * 86400))})
         if table == "stock_movements":
             self._apply_stock(row)
         if table == "order_items":
@@ -326,6 +337,12 @@ class FakeSupabase:
                 for i in self.db["order_items"]:
                     if i["order_id"] == row["id"] and i["status"] == "pending":
                         i["status"], i["sent_at"] = "sent", now_iso()
+        elif table == "restaurant_members":
+            if row["role"] == "owner" and row["active"] and (patch.get("role", "owner") != "owner" or patch.get("active") is False) \
+                    and not any(m is not row and m["restaurant_id"] == row["restaurant_id"] and m["role"] == "owner" and m["active"]
+                                for m in self.db["restaurant_members"]):
+                raise BusinessError("El local tiene que tener al menos un dueño activo.")
+            row.update(patch)
         else:
             if table == "ingredients" and "stock_qty" in patch and patch["stock_qty"] != row["stock_qty"]:
                 raise BusinessError("El stock se modifica registrando una compra, merma, ajuste o conteo")
@@ -333,6 +350,42 @@ class FakeSupabase:
         row["updated_at"] = now_iso()
 
     # ---------- RPC ----------
+    def _invite(self, token):
+        return next((i for i in self.db["restaurant_invites"] if i["token"] == token), None)
+
+    def _invite_preview(self, args):
+        inv = self._invite(args["p_token"])
+        if not inv:
+            return {"status": "invalid"}
+        member = any(m["restaurant_id"] == inv["restaurant_id"] and m["user_id"] == USER_ID and m["active"]
+                     for m in self.db["restaurant_members"])
+        status = ("member" if member else "revoked" if inv["revoked_at"] else "used" if inv["accepted_at"]
+                  else "expired" if inv["expires_at"] <= now_iso() else "ok")
+        by = self._find("profiles", inv["created_by"])
+        return {"status": status, "restaurant_id": inv["restaurant_id"], "role": inv["role"],
+                "restaurant_name": self._find("restaurants", inv["restaurant_id"])["name"],
+                "invited_by": by["full_name"] if by else None, "expires_at": inv["expires_at"]}
+
+    def _accept_invite(self, args):
+        inv = self._invite(args["p_token"])
+        if not inv:
+            raise BusinessError("El link de invitación no es válido.")
+        if inv["revoked_at"]:
+            raise BusinessError("Esta invitación fue anulada. Pedí un link nuevo.")
+        if inv["accepted_at"]:
+            raise BusinessError("Esta invitación ya se usó. Pedí un link nuevo.")
+        cur = next((m for m in self.db["restaurant_members"]
+                    if m["restaurant_id"] == inv["restaurant_id"] and m["user_id"] == USER_ID), None)
+        if cur and cur["active"]:
+            raise BusinessError("Ya sos parte de este local.")
+        if cur:
+            cur.update({"role": inv["role"], "active": True})
+        else:
+            self.db["restaurant_members"].append({"restaurant_id": inv["restaurant_id"], "user_id": USER_ID,
+                                                  "role": inv["role"], "display_name": None, "active": True})
+        inv.update({"accepted_at": now_iso(), "accepted_by": USER_ID})
+        return inv["restaurant_id"]
+
     def _create_restaurant(self, args):
         rid = str(uuid.uuid4())
         self.db["restaurants"].append({"id": rid, "name": args["p_name"].strip(), "currency": "ARS",
@@ -397,6 +450,12 @@ class FakeSupabase:
             return reply(200, self._stock_count(json.loads(req.post_data or "{}")))
         if path == "/rest/v1/rpc/sales_report":
             return reply(200, self._sales_report(json.loads(req.post_data or "{}")))
+        if path in ("/rest/v1/rpc/invite_preview", "/rest/v1/rpc/accept_invite"):
+            fn = self._invite_preview if path.endswith("preview") else self._accept_invite
+            try:
+                return reply(200, fn(json.loads(req.post_data or "{}")))
+            except BusinessError as e:
+                return reply(400, {"code": "P0001", "message": str(e)})
         if path == "/rest/v1/rpc/close_cash_session":
             try:
                 return reply(200, self._close_cash(json.loads(req.post_data or "{}")))

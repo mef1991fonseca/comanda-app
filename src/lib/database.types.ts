@@ -119,6 +119,12 @@ export type Database = {
           { foreignKeyName: 'restaurant_members_restaurant_id_fkey'; columns: ['restaurant_id']; isOneToOne: false; referencedRelation: 'restaurants'; referencedColumns: ['id'] },
         ]
       }
+      restaurant_invites: {
+        Row: { accepted_at: Ts | null; accepted_by: string | null; created_at: Ts; created_by: string; expires_at: Ts; id: string; restaurant_id: string; revoked_at: Ts | null; role: Database['public']['Enums']['member_role']; token: string }
+        Insert: { accepted_at?: Ts | null; accepted_by?: string | null; created_at?: Ts; created_by?: string; expires_at?: Ts; id?: string; restaurant_id: string; revoked_at?: Ts | null; role: Database['public']['Enums']['member_role']; token?: string }
+        Update: Partial<Database['public']['Tables']['restaurant_invites']['Insert']>
+        Relationships: []
+      }
       restaurants: {
         Row: { address: string | null; created_at: Ts; created_by: string | null; cuit: string | null; currency: string; id: string; legal_name: string | null; name: string; phone: string | null; timezone: string; updated_at: Ts }
         Insert: { address?: string | null; created_at?: Ts; created_by?: string | null; cuit?: string | null; currency?: string; id?: string; legal_name?: string | null; name: string; phone?: string | null; timezone?: string; updated_at?: Ts }
@@ -146,6 +152,14 @@ export type Database = {
     }
     Views: { [_ in never]: never }
     Functions: {
+      accept_invite: {
+        Args: { p_token: string }
+        Returns: string
+      }
+      invite_preview: {
+        Args: { p_token: string }
+        Returns: Json
+      }
       close_cash_session: {
         Args: { p_counted: number; p_notes?: string; p_session: string }
         Returns: Database['public']['Tables']['cash_sessions']['Row']

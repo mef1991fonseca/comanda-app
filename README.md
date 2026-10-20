@@ -12,7 +12,9 @@ Nombre provisorio.
 | 2 | Pantalla de cocina (KDS), cobro con varios medios de pago, descuentos y propinas, caja con arqueo | Listo |
 | 3 | Stock con recetas, compras, mermas y conteos; reportes de ventas con costo y margen; Inicio del dueño | Listo |
 | 4 | Modo sin conexión: pedidos, envío a cocina y KDS sin internet, con sincronización y aviso de conflictos | Listo |
-| 5 | Publicación (Cloudflare Pages), factura electrónica ARCA, Mercado Pago | Próximo |
+| 5 | Publicación en Cloudflare Pages; equipo con invitaciones por link | Listo |
+| 6 | Impresión de comandas y precuentas, operación de salón (pasar de mesa, dividir cuenta) | Próximo |
+| 7 | Factura electrónica ARCA y Mercado Pago (modo prueba) | Esperando credenciales |
 
 ## Correr el proyecto
 

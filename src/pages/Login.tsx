@@ -1,10 +1,13 @@
 import { useState, type FormEvent } from 'react'
 import { supabase, errorMessage } from '../lib/supabase'
+import { inviteUrl, pendingInvite } from '../lib/invites'
 
 type Mode = 'signin' | 'signup'
 
 export function Login() {
-  const [mode, setMode] = useState<Mode>('signin')
+  const invite = pendingInvite()
+  // Quien llega por una invitación casi siempre todavía no tiene cuenta
+  const [mode, setMode] = useState<Mode>(invite ? 'signup' : 'signin')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -23,7 +26,7 @@ export function Login() {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { full_name: name.trim() }, emailRedirectTo: window.location.origin },
+        options: { data: { full_name: name.trim() }, emailRedirectTo: invite ? inviteUrl(invite) : window.location.origin },
       })
       if (error) setError(errorMessage(error))
       else if (!data.session) setSentTo(email)
@@ -52,6 +55,11 @@ export function Login() {
           </>
         ) : (
           <>
+            {invite && (
+              <div className="notice notice-info">
+                Te invitaron a sumarte al equipo de un local. Creá tu cuenta o iniciá sesión para aceptar.
+              </div>
+            )}
             <div className="switcher" role="group" aria-label="Elegí cómo entrar">
               <button type="button" aria-pressed={mode === 'signin'} onClick={() => setMode('signin')}>
                 Iniciar sesión

@@ -437,9 +437,76 @@ with sync_playwright() as p:
     page.get_by_role("button", name="Descartar todos").click()
     expect(page.locator(".sync-bar")).to_have_count(0)
 
+    # ---------- Equipo: invitar, cambiar rol, dar de baja ----------
+    import uuid as _uuid
+    bodegon = fake.db["restaurants"][0]["id"]
+    lucia = str(_uuid.uuid4())
+    fake.db["profiles"].append({"id": lucia, "full_name": "Lucía Pérez"})
+    fake.db["restaurant_members"].append({"restaurant_id": bodegon, "user_id": lucia, "role": "waiter", "display_name": None, "active": True})
+    page.get_by_role("link", name="Más").click()
+    page.get_by_role("button", name="Equipo Invitar personas y cambiar roles").click()
+    expect(page.get_by_role("heading", name="Personas · 2")).to_be_visible()
+    page.get_by_role("button", name="Invitar a alguien").click()
+    page.get_by_role("dialog").get_by_text("Cocina", exact=True).click()
+    shot(page, "s5-01-invitar")
+    page.get_by_role("button", name="Crear link de cocina").click()
+    share = page.get_by_role("dialog", name="Link para cocina")
+    expect(share.get_by_label("Link")).to_have_value(__import__("re").compile(r"/invitacion/[0-9a-f]{24}$"))
+    wa = share.get_by_role("link", name="Enviar por WhatsApp").get_attribute("href")
+    assert wa.startswith("https://wa.me/?text=") and "Bodeg%C3%B3n%20QA" in wa, wa
+    shot(page, "s5-02-link")
+    page.keyboard.press("Escape")
+    pending = page.locator(".list-row").filter(has_text="Vence el")
+    expect(pending).to_have_count(1)
+    pending.get_by_role("button", name="Anular").click()
+    expect(pending).to_have_count(0)
+    assert fake.db["restaurant_invites"][0]["revoked_at"]
+
+    page.get_by_role("button", name="Lucía Pérez, Mozo. Cambiar rol").click()
+    page.get_by_role("dialog").get_by_text("Cajero", exact=True).click()
+    page.get_by_role("button", name="Guardar rol").click()
+    expect(page.get_by_role("button", name="Lucía Pérez, Cajero. Cambiar rol")).to_be_visible()
+    shot(page, "s5-03-equipo")
+    page.get_by_role("button", name="Lucía Pérez, Cajero. Cambiar rol").click()
+    page.once("dialog", lambda d: d.accept())
+    page.get_by_role("button", name="Dar de baja del local").click()
+    expect(page.get_by_role("heading", name="Personas · 1")).to_be_visible()
+    # la dueña no se puede editar a sí misma desde acá
+    expect(page.get_by_role("button", name=__import__("re").compile("Cambiar rol"))).to_have_count(0)
+
+    # ---------- Aceptar una invitación a otro local ----------
+    otra = str(_uuid.uuid4())
+    fake.db["profiles"].append({"id": otra, "full_name": "Marta Gómez"})
+    parrilla = fake._create_restaurant({"p_name": "Parrilla Invitada", "p_tables": 4})
+    fake.db["restaurant_members"][-1]["user_id"] = otra
+    fake.db["restaurant_invites"].append({"id": str(_uuid.uuid4()), "restaurant_id": parrilla, "role": "waiter",
+                                          "token": "tok-parrilla-0001", "created_by": otra, "created_at": "2026-10-20T10:00:00Z",
+                                          "expires_at": "2099-01-01T00:00:00Z", "accepted_at": None, "accepted_by": None, "revoked_at": None})
+    page.goto(BASE + "/invitacion/tok-parrilla-0001")
+    expect(page.get_by_role("heading", name="Sumate a Parrilla Invitada")).to_be_visible()
+    expect(page.locator(".entry-body")).to_contain_text("Marta Gómez te invitó a Parrilla Invitada como mozo")
+    assert page.url == BASE + "/", page.url
+    shot(page, "s5-04-aceptar")
+    page.get_by_role("button", name="Unirme al equipo").click()
+    expect(page.locator(".topbar")).to_contain_text("Parrilla Invitada")
+    expect(page.locator(".table-tile")).to_have_count(4)
+    expect(page.get_by_role("link", name="Caja")).to_have_count(0)   # mozo: sin caja
+    page.goto(BASE + "/invitacion/tok-parrilla-0001")
+    expect(page.get_by_role("heading", name="Ya sos parte de Parrilla Invitada")).to_be_visible()
+    page.get_by_role("button", name="Entrar").click()
+    page.get_by_role("link", name="Más").click()
+    page.get_by_role("button", name="Bodegón QA").click()
+    expect(page.locator(".topbar")).to_contain_text("Bodegón QA")
+
     page.get_by_role("link", name="Más").click()
     page.get_by_role("button", name="Cerrar sesión").click()
     expect(page.get_by_label("Email")).to_be_visible()
+
+    # sin sesión, el link de invitación lleva a crear la cuenta
+    page.goto(BASE + "/invitacion/tok-sin-cuenta-01")
+    expect(page.get_by_text("Te invitaron a sumarte al equipo de un local")).to_be_visible()
+    expect(page.get_by_label("Tu nombre")).to_be_visible()
+    shot(page, "s5-05-login-invitado")
 
     browser.close()
     real = [e for e in errors if "WebSocket" not in e and "realtime" not in e.lower() and "status of 400" not in e

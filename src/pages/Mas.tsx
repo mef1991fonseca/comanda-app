@@ -57,6 +57,10 @@ export function Mas() {
           <section className="section">
             <h2>Local</h2>
             <div className="list">
+              <button className="list-row" onClick={() => navigate('/equipo')}>
+                <span>Equipo</span>
+                <span className="muted">Invitar personas y cambiar roles</span>
+              </button>
               <button className="list-row" onClick={() => navigate('/carta')}>
                 <span>Carta</span>
                 <span className="muted">Productos, recetas y modificadores</span>
@@ -90,9 +94,6 @@ export function Mas() {
               </div>
             ))}
           </div>
-          {(role === 'owner' || role === 'manager') && (
-            <p className="muted">Invitar personas al equipo estará disponible en la próxima versión.</p>
-          )}
         </section>
 
         <section className="section">

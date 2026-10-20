@@ -10,8 +10,10 @@ import './styles.css'
 import { AuthProvider } from './lib/auth'
 import { RestaurantProvider } from './lib/restaurant'
 import { App } from './App'
+import { captureInviteFromUrl } from './lib/invites'
 
 registerSW({ immediate: true })
+captureInviteFromUrl()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
