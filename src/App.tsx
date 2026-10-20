@@ -19,6 +19,7 @@ import { Stock } from './pages/Stock'
 import { Equipo } from './pages/Equipo'
 import { Facturacion } from './pages/Facturacion'
 import { Factura } from './pages/Factura'
+import { Imprimir } from './pages/Imprimir'
 import { Invitacion } from './pages/Invitacion'
 import { pendingInvite } from './lib/invites'
 
@@ -44,6 +45,7 @@ export function App() {
     <Routes>
       <Route path="/nuevo-local" element={<Onboarding first={false} />} />
       <Route path="/factura/:invoiceId" element={<Factura />} />
+      <Route path="/imprimir/:kind/:orderId" element={<Imprimir />} />
       <Route element={<AppShell />}>
         <Route path="/salon" element={<Salon />} />
         <Route path="/comandas" element={<Comandas />} />

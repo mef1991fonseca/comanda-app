@@ -280,6 +280,7 @@ class FakeSupabase:
         for k, v in DEFAULTS.get(table, {}).items():
             row.setdefault(k, json.loads(json.dumps(v)))
         if table == "orders":
+            row.setdefault("waiter_id", USER_ID)
             self.counter += 1
             row["number"] = self.counter
             row.setdefault("opened_at", now_iso(offset_min=5))
@@ -416,6 +417,21 @@ class FakeSupabase:
         self.db["invoices"].append(inv)
         return {"invoice": inv}
 
+    def _merge_orders(self, args):
+        t, src = self._find("orders", args["p_target"]), self._find("orders", args["p_source"])
+        if not t or not src or t["status"] != "open" or src["status"] != "open":
+            raise BusinessError("Las dos comandas tienen que estar abiertas")
+        if src["paid_total"] > 0:
+            raise BusinessError("La comanda ya tiene pagos")
+        for i in self.db["order_items"]:
+            if i["order_id"] == src["id"]:
+                i["order_id"] = t["id"]
+        src.update({"status": "cancelled", "subtotal": 0, "total": 0, "cancelled_reason": f"Unida a la comanda #{t['number']}"})
+        self._recalc_order(t["id"])
+        if t.get("guests") or src.get("guests"):
+            t["guests"] = (t.get("guests") or 0) + (src.get("guests") or 0)
+        return t["id"]
+
     # ---------- RPC ----------
     def _invite(self, token):
         return next((i for i in self.db["restaurant_invites"] if i["token"] == token), None)
@@ -513,6 +529,11 @@ class FakeSupabase:
 
         if path == "/rest/v1/rpc/create_restaurant":
             return reply(200, self._create_restaurant(json.loads(req.post_data or "{}")))
+        if path == "/rest/v1/rpc/merge_orders":
+            try:
+                return reply(200, self._merge_orders(json.loads(req.post_data or "{}")))
+            except BusinessError as e:
+                return reply(400, {"code": "P0001", "message": str(e)})
         if path == "/rest/v1/rpc/stock_count":
             return reply(200, self._stock_count(json.loads(req.post_data or "{}")))
         if path == "/rest/v1/rpc/sales_report":

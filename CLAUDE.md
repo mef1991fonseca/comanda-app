@@ -59,6 +59,14 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
   (responsable inscripto); pide el último número, reintenta ante 10016 y guarda el CAE en `invoices`
   (el cliente solo lee). Ticket WSAA cacheado en `arca_tokens` (ARCA no da otro mientras esté vigente).
   Pantallas: Más → Facturación, cierre "Cerrar y facturar" en el cobro, `/factura/:id` imprimible con QR fiscal.
+- **Operación de salón:** `orders.waiter_id` (por defecto quien abre; trigger `orders_salon_guard` exige que sea
+  del equipo y que solo se cambie de mesa una comanda abierta). RPC `merge_orders(destino, origen)`: pasa los
+  ítems, recalcula el destino, suma comensales y anula el origen ("Unida a la comanda #N"); no une comandas con
+  pagos. En la app: botón Opciones de la comanda (`components/OrderActions.tsx`), mozo en las mesas del salón y
+  filtro "Mis mesas" para mozos. Dividir la cuenta (en partes o por productos) solo sugiere el monto del pago.
+- **Impresión:** `/imprimir/precuenta/:id` y `/imprimir/cocina/:id` (`pages/Imprimir.tsx`), tickets de 80 mm con
+  la impresión del navegador (`@page size: 80mm`). Sirve con cualquier impresora instalada en el equipo; la
+  impresión directa ESC/POS sin diálogo sigue pendiente.
 - **Alta de local:** RPC `create_restaurant(nombre, mesas)` crea el local con dueño, estaciones Cocina/Barra,
   Caja principal, medios de pago y un salón con N mesas.
 - **Realtime** publicado en `orders`, `order_items`, `payments` (respeta RLS).
@@ -117,7 +125,7 @@ Salón, Comandas, Caja, Más; Cocina para ellos está en Más.
 - Sin conexión no se puede cobrar (los pagos dependen de la caja abierta y del saldo en el servidor).
 - Validar mínimos/máximos de modificadores también en el servidor.
 - Caja: hoy se usa la primera caja activa del local; múltiples cajas y arqueo ciego quedan para más adelante.
-- Impresión de comandas y precuentas (ESC/POS) todavía no está.
+- Impresión directa ESC/POS (sin el diálogo del navegador) y salida automática a la impresora de cocina al enviar.
 - El costo en reportes usa el costo actual de los insumos, no el histórico al momento de la venta.
 - Cantidades con decimales se escriben con coma (es-AR): `parseAmount` toma el punto como separador de miles.
 - Mercado Pago: hoy usa una sola cuenta (la de prueba de ALTech) para todos los locales. Para producción falta

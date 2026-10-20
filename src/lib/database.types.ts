@@ -174,6 +174,10 @@ export type Database = {
         Args: { p_token: string }
         Returns: string
       }
+      merge_orders: {
+        Args: { p_target: string; p_source: string }
+        Returns: string
+      }
       invite_preview: {
         Args: { p_token: string }
         Returns: Json

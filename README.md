@@ -13,9 +13,9 @@ Nombre provisorio.
 | 3 | Stock con recetas, compras, mermas y conteos; reportes de ventas con costo y margen; Inicio del dueño | Listo |
 | 4 | Modo sin conexión: pedidos, envío a cocina y KDS sin internet, con sincronización y aviso de conflictos | Listo |
 | 5 | Publicación en Cloudflare Pages; equipo con invitaciones por link | Listo |
-| 6 | Impresión de comandas y precuentas, operación de salón (pasar de mesa, dividir cuenta) | Próximo |
+| 6 | Operación de salón (mozo, pasar y unir mesas, comensales, dividir la cuenta) e impresión de precuenta y comanda | Listo |
 | 7 | Cobro con QR de Mercado Pago (modo prueba) | Listo |
-| 8 | Factura electrónica ARCA (homologación) | Esperando CUIL |
+| 8 | Factura electrónica ARCA (homologación) | Listo |
 
 ## Correr el proyecto
 

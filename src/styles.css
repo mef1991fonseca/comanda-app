@@ -1742,3 +1742,105 @@ a.btn {
   body, .invoice-page { background: #fff; padding: 0; }
   .invoice { border: 0; max-width: none; padding: 0; }
 }
+
+/* ---------- Operación de salón ---------- */
+.head-action {
+  margin-left: auto;
+  min-height: 44px;
+  padding: 0 14px;
+}
+.tile-waiter {
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+.switcher.compact-wide {
+  max-width: 320px;
+  margin-bottom: 12px;
+}
+.table-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 10px;
+}
+.table-tile.small {
+  min-height: 72px;
+  aspect-ratio: auto;
+  display: grid;
+  place-items: center;
+}
+.list-row[aria-pressed='true'] {
+  background: var(--bottle-soft);
+}
+.split {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+}
+.split-label { font-weight: 600; }
+.switcher.three { grid-template-columns: repeat(3, 1fr); }
+.switcher.three button { font-size: 0.9375rem; padding: 0 4px; }
+.split-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.split-items { display: grid; gap: 2px; }
+.split-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+}
+
+/* ---------- Tickets impresos (80 mm) ---------- */
+.print-page {
+  min-height: 100dvh;
+  background: var(--surface);
+  padding: 16px;
+  display: grid;
+  gap: 16px;
+  justify-items: center;
+  align-content: start;
+}
+.print-actions {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  max-width: 340px;
+  justify-content: space-between;
+}
+.receipt {
+  width: 302px; /* ~80 mm a 96 dpi */
+  background: #fff;
+  color: #000;
+  padding: 14px 12px;
+  font-family: 'Courier New', ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.35;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
+}
+.receipt-center { text-align: center; }
+.receipt-title { font-weight: 700; font-size: 16px; }
+.receipt-big {
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.receipt-rule { border-top: 1px dashed #000; margin: 8px 0; }
+.receipt-row { display: flex; justify-content: space-between; gap: 8px; }
+.receipt-row > span:last-child { white-space: nowrap; }
+.receipt-total { font-weight: 700; font-size: 16px; margin: 2px 0; }
+.receipt-mod { display: block; padding-left: 14px; font-size: 12px; }
+.receipt-station { margin-top: 10px; border-top: 1px dashed #000; padding-top: 6px; }
+.receipt-station-name { font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+.receipt-kitchen-item { display: grid; grid-template-columns: 28px 1fr; gap: 6px; font-size: 15px; margin-bottom: 6px; }
+.receipt-qty { font-weight: 700; font-size: 18px; }
+@media print {
+  @page { size: 80mm auto; margin: 3mm; }
+  .print-page { padding: 0; background: #fff; display: block; }
+  .receipt { box-shadow: none; width: auto; padding: 0; }
+}

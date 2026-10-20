@@ -6,6 +6,8 @@ import { useCurrentRestaurant } from '../lib/restaurant'
 import { formatElapsed, formatMoney, minutesSince } from '../lib/format'
 import type { Tables } from '../lib/database.types'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../lib/auth'
+import { shortName, useTeam } from '../lib/team'
 import { TopBar } from '../components/AppShell'
 import { Sheet } from '../components/Sheet'
 
@@ -37,6 +39,12 @@ export function Salon() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const now = useNow()
+  const team = useTeam(rid)
+  const { session } = useAuth()
+  const me = session?.user.id
+  // Los mozos pueden ver solo sus mesas
+  const [mine, setMine] = useState(false)
+  const nameOf = (id: string | null) => team.find((m) => m.user_id === id)?.name ?? null
 
   const loadOrders = useCallback(async () => {
     const [o, p] = await Promise.all([
@@ -117,7 +125,9 @@ export function Salon() {
     return map
   }, [orders])
 
-  const visible = tables.filter((t) => t.area_id === areaId)
+  const visible = tables.filter(
+    (t) => t.area_id === areaId && (!mine || orderByTable.get(t.id)?.waiter_id === me),
+  )
   const busyCount = visible.filter((t) => orderByTable.has(t.id)).length
 
   return (
@@ -125,6 +135,13 @@ export function Salon() {
       <TopBar title="Salón" />
       <div className="content">
         {error && <div className="notice notice-error" role="alert">{error}</div>}
+
+        {role === 'waiter' && (
+          <div className="switcher compact-wide" role="group" aria-label="Qué mesas ver">
+            <button type="button" aria-pressed={!mine} onClick={() => setMine(false)}>Todas</button>
+            <button type="button" aria-pressed={mine} onClick={() => setMine(true)}>Mis mesas</button>
+          </div>
+        )}
 
         {areas.length > 1 && (
           <div className="areas" role="group" aria-label="Salones">
@@ -168,6 +185,12 @@ export function Salon() {
                           <strong>{order.total > 0 ? formatMoney(order.total) : 'Sin pedidos'}</strong>
                           <br />
                           {toServe ? 'Listo para servir' : toSend ? 'Sin enviar' : formatElapsed(minutesSince(order.opened_at, now))}
+                          {nameOf(order.waiter_id) && (
+                            <>
+                              <br />
+                              <span className="tile-waiter">{shortName(nameOf(order.waiter_id)!)}</span>
+                            </>
+                          )}
                         </>
                       ) : (
                         `${t.seats} lugares`
@@ -187,6 +210,7 @@ export function Salon() {
           order={orderByTable.get(selected.id) ?? null}
           canSell={SELLER_ROLES.includes(role)}
           restaurantId={rid}
+          waiterName={nameOf(orderByTable.get(selected.id)?.waiter_id ?? null)}
           now={now}
           onClose={() => setSelected(null)}
           onChanged={loadOrders}
@@ -201,6 +225,7 @@ function TableSheet({
   order,
   canSell,
   restaurantId,
+  waiterName,
   now,
   onClose,
   onChanged,
@@ -209,6 +234,7 @@ function TableSheet({
   order: Order | null
   canSell: boolean
   restaurantId: string
+  waiterName: string | null
   now: number
   onClose: () => void
   onChanged: () => Promise<void>
@@ -262,6 +288,12 @@ function TableSheet({
     >
       {order ? (
         <div className="ticket">
+          {waiterName && (
+            <div className="ticket-row">
+              <span>Mozo</span>
+              <span>{waiterName}</span>
+            </div>
+          )}
           <div className="ticket-row">
             <span>{orderNumberLabel(order)}</span>
             <span className="muted">abierta hace {formatElapsed(minutesSince(order.opened_at, now))}</span>

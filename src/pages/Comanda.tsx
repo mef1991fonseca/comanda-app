@@ -20,6 +20,8 @@ import { useSync } from '../lib/useSync'
 import { formatMoney } from '../lib/format'
 import { Sheet } from '../components/Sheet'
 import { PaySheet } from '../components/PaySheet'
+import { OrderActions } from '../components/OrderActions'
+import { useTeam, shortName } from '../lib/team'
 
 const FAVORITES = '__favoritos__'
 
@@ -37,7 +39,9 @@ export function Comanda() {
   const [ticketOpen, setTicketOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [options, setOptions] = useState(false)
   const { online } = useSync()
+  const team = useTeam(restaurant.id)
 
   const canSell = ['owner', 'manager', 'cashier', 'waiter'].includes(role)
   const isOpen = order?.status === 'open'
@@ -119,6 +123,8 @@ export function Comanda() {
       </div>
     )
 
+  const waiterName = team.find((m) => m.user_id === order.waiter_id)?.name ?? null
+
   const ticket = (
     <Ticket
       pending={pending}
@@ -153,8 +159,15 @@ export function Comanda() {
           <span className="muted">
             {orderNumberLabel(order)}
             {!isOpen && ` · ${order.status === 'closed' ? 'cerrada' : 'anulada'}`}
+            {waiterName && ` · ${shortName(waiterName)}`}
+            {order.guests ? ` · ${order.guests} ${order.guests === 1 ? 'comensal' : 'comensales'}` : ''}
           </span>
         </div>
+        {editable && (
+          <button className="btn btn-quiet head-action" onClick={() => setOptions(true)}>
+            Opciones
+          </button>
+        )}
       </header>
 
       {(error || actionError) && (
@@ -239,10 +252,22 @@ export function Comanda() {
         </Sheet>
       )}
 
+      {options && (
+        <OrderActions
+          order={order}
+          tableName={tableName}
+          team={team}
+          online={online}
+          onClose={() => setOptions(false)}
+          onChanged={reload}
+        />
+      )}
+
       {paying && online && (
         <PaySheet
           order={order}
           payments={payments}
+          items={items}
           role={role}
           pendingItems={pendingUnits}
           onClose={() => setPaying(false)}

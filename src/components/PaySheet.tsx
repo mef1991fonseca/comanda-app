@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, errorMessage } from '../lib/supabase'
 import { parseAmount, type PaymentMethod } from '../lib/cash'
 import { formatMoney } from '../lib/format'
-import type { Order, Payment } from '../lib/orders'
+import type { Order, OrderItem, Payment } from '../lib/orders'
 import type { Enums } from '../lib/database.types'
 import { Sheet } from './Sheet'
 import { QrPanel } from './QrPanel'
@@ -20,6 +20,7 @@ type Role = Enums<'member_role'>
 export function PaySheet({
   order,
   payments,
+  items = [],
   role,
   pendingItems,
   onClose,
@@ -28,6 +29,7 @@ export function PaySheet({
 }: {
   order: Order
   payments: Payment[]
+  items?: OrderItem[]
   role: Role
   pendingItems: number
   onClose: () => void
@@ -45,6 +47,10 @@ export function PaySheet({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [qr, setQr] = useState<MpCharge | null>(null)
+  // Dividir la cuenta: solo sugiere el monto de cada pago; los pagos parciales los controla la base
+  const [split, setSplit] = useState<'none' | 'equal' | 'items'>('none')
+  const [parts, setParts] = useState(2)
+  const [picked, setPicked] = useState<Set<string>>(new Set())
   const [fiscalOn, setFiscalOn] = useState(false)
   const [invoicing, setInvoicing] = useState(false)
   const navigate = useNavigate()
@@ -72,11 +78,23 @@ export function PaySheet({
     void load()
   }, [order.restaurant_id])
 
-  // El monto sugerido es siempre lo que falta
+  const billable = items.filter((i) => i.status !== 'cancelled')
+  // Con descuento, cada producto paga su parte proporcional
+  const factor = order.subtotal > 0 ? order.total / order.subtotal : 1
+  const share = Math.ceil(order.total / parts)
+  const pickedTotal = Math.round(billable.filter((i) => picked.has(i.id)).reduce((s, i) => s + (i.line_total ?? 0), 0) * factor)
+
+  // El monto sugerido es lo que falta, o la parte que toca según cómo se divide
   useEffect(() => {
-    setAmount(remaining ? String(remaining) : '')
+    const suggested = split === 'equal' ? Math.min(share, remaining) : split === 'items' ? Math.min(pickedTotal, remaining) : remaining
+    setAmount(suggested ? String(suggested) : '')
     setReceived('')
-  }, [remaining])
+  }, [remaining, split, share, pickedTotal])
+
+  // Después de cada pago por productos se limpia la selección
+  useEffect(() => {
+    setPicked(new Set())
+  }, [order.paid_total])
 
   const method = methods.find((m) => m.id === methodId)
   const isCash = method?.kind === 'cash'
@@ -241,6 +259,50 @@ export function PaySheet({
                   </button>
                 )
               })}
+            </div>
+            <div className="split">
+              <span className="split-label">Dividir la cuenta</span>
+              <div className="switcher three" role="group" aria-label="Dividir la cuenta">
+                <button type="button" aria-pressed={split === 'none'} onClick={() => setSplit('none')}>No</button>
+                <button type="button" aria-pressed={split === 'equal'} onClick={() => setSplit('equal')}>En partes</button>
+                <button type="button" aria-pressed={split === 'items'} onClick={() => setSplit('items')} disabled={billable.length === 0}>Por productos</button>
+              </div>
+              {split === 'equal' && (
+                <div className="split-row">
+                  <span className="stepper">
+                    <button aria-label="Una parte menos" disabled={parts <= 2} onClick={() => setParts((n) => n - 1)}>−</button>
+                    <span>{parts}</span>
+                    <button aria-label="Una parte más" disabled={parts >= 30} onClick={() => setParts((n) => n + 1)}>+</button>
+                  </span>
+                  <span>
+                    partes de <strong>{formatMoney(share)}</strong>
+                  </span>
+                </div>
+              )}
+              {split === 'items' && (
+                <div className="split-items">
+                  {billable.map((i) => (
+                    <label key={i.id} className="check">
+                      <input
+                        type="checkbox"
+                        checked={picked.has(i.id)}
+                        onChange={(e) =>
+                          setPicked((cur) => {
+                            const next = new Set(cur)
+                            if (e.target.checked) next.add(i.id)
+                            else next.delete(i.id)
+                            return next
+                          })
+                        }
+                      />
+                      <span className="split-item">
+                        <span>{i.quantity > 1 ? `${i.quantity} × ` : ''}{i.name}</span>
+                        <span className="nowrap">{formatMoney((i.line_total ?? 0) * factor)}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="field-row">
               <div className="field">
