@@ -90,7 +90,7 @@ export function Factura() {
               {docTypeLabel[inv.doc_type]} {inv.doc_type === 80 ? formatCuit(inv.doc_number) : inv.doc_number}
             </div>
           )}
-          <div>{receiverConditionLabel[inv.receiver_condition]}</div>
+          {inv.receiver_name && <div>{receiverConditionLabel[inv.receiver_condition]}</div>}
         </section>
 
         <table className="invoice-items">
