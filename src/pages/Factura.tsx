@@ -2,7 +2,12 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { supabase } from '../lib/supabase'
+import { useCurrentRestaurant } from '../lib/restaurant'
+import { Sheet } from '../components/Sheet'
+import { InvoiceForm } from '../components/InvoiceForm'
 import {
+  isCreditNote,
+  issueCreditNote,
   cbteLabel,
   docTypeLabel,
   fiscalQrUrl,
@@ -29,12 +34,27 @@ export function Factura() {
   const [items, setItems] = useState<Item[]>([])
   const [qr, setQr] = useState('')
   const [missing, setMissing] = useState(false)
+  const [linked, setLinked] = useState<Invoice | null>(null)
+  const [voiding, setVoiding] = useState(false)
+  const [reinvoicing, setReinvoicing] = useState(false)
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const { role } = useCurrentRestaurant()
+  const canVoid = role === 'owner' || role === 'manager'
+  const canInvoice = canVoid || role === 'cashier'
 
   useEffect(() => {
     async function load() {
+      setLinked(null)
+      setVoiding(false)
+      setReinvoicing(false)
       const { data } = await supabase.from('invoices').select('*').eq('id', invoiceId).maybeSingle()
       if (!data) return setMissing(true)
       setInv(data)
+      // La nota de crédito que la anuló, o la factura que anula esta nota de crédito
+      const linkedId = data.credit_note_id ?? data.associated_id
+      if (linkedId) void supabase.from('invoices').select('*').eq('id', linkedId).maybeSingle().then(({ data: l }) => setLinked(l))
       const [s, i] = await Promise.all([
         supabase.from('fiscal_settings').select('*').eq('restaurant_id', data.restaurant_id).maybeSingle(),
         supabase.from('order_items').select('id, name, quantity, line_total, status').eq('order_id', data.order_id).neq('status', 'cancelled').order('created_at'),
@@ -50,7 +70,19 @@ export function Factura() {
   if (!inv || !fs) return <div className="center-screen">Cargando la factura…</div>
 
   const kind = cbteLabel[inv.cbte_type]
-  const showVat = inv.cbte_type === 1
+  const showVat = inv.cbte_type === 1 || inv.cbte_type === 3
+  const nc = isCreditNote(inv.cbte_type)
+  const linkedLabel = linked ? `${cbteLabel[linked.cbte_type]?.name} N.º ${invoiceNumber(linked)}` : ''
+
+  async function voidInvoice() {
+    if (!inv) return
+    setBusy(true)
+    setError(null)
+    const { invoice, error } = await issueCreditNote(inv.id, reason.trim() || undefined)
+    setBusy(false)
+    if (error || !invoice) return setError(error ?? 'No se pudo emitir la nota de crédito.')
+    navigate(`/factura/${invoice.id}`, { replace: true })
+  }
 
   return (
     <div className="invoice-page">
@@ -58,6 +90,13 @@ export function Factura() {
         <button className="btn btn-quiet" onClick={() => navigate(-1)}>Volver</button>
         <button className="btn btn-primary" onClick={() => window.print()}>Imprimir o guardar PDF</button>
       </div>
+
+      {(inv.credit_note_id || nc) && linked && (
+        <div className="notice notice-info invoice-link no-print">
+          {nc ? 'Esta nota de crédito anula la ' : 'Factura anulada con la '}
+          <button className="link-btn inline" onClick={() => navigate(`/factura/${linked.id}`)}>{linkedLabel}</button>.
+        </div>
+      )}
 
       <article className="invoice">
         {inv.environment === 'homologacion' && <div className="invoice-test">Comprobante de prueba · sin validez fiscal</div>}
@@ -92,6 +131,13 @@ export function Factura() {
           )}
           {inv.receiver_name && <div>{receiverConditionLabel[inv.receiver_condition]}</div>}
         </section>
+
+        {nc && linked && (
+          <div className="invoice-assoc">
+            Comprobante asociado: {linkedLabel} del {day(linked.issued_on)}
+            {inv.reason && <> · Motivo: {inv.reason}</>}
+          </div>
+        )}
 
         <table className="invoice-items">
           <thead>
@@ -128,6 +174,46 @@ export function Factura() {
           </div>
         </footer>
       </article>
+
+      <div className="invoice-actions no-print">
+        {!nc && !inv.credit_note_id && canVoid && (
+          <button className="btn btn-danger" onClick={() => setVoiding(true)}>Anular con nota de crédito</button>
+        )}
+        {inv.credit_note_id && canInvoice && (
+          <button className="btn btn-primary" onClick={() => setReinvoicing(true)}>Facturar la comanda de nuevo</button>
+        )}
+      </div>
+
+      {voiding && (
+        <Sheet title="Anular factura" onClose={() => setVoiding(false)}>
+          <p>
+            Se emite una <strong>{cbteLabel[{ 1: 3, 6: 8, 11: 13 }[inv.cbte_type] ?? 13]?.name}</strong> por {formatMoney(inv.total)} que
+            anula la {kind?.name} N.º {invoiceNumber(inv)}. La venta sigue registrada y después podés facturarla de nuevo con otros datos.
+          </p>
+          <div className="field">
+            <label htmlFor="nc-reason">Motivo</label>
+            <input id="nc-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Opcional, por ejemplo: datos del cliente mal cargados" />
+          </div>
+          {error && <div className="notice notice-error" role="alert">{error}</div>}
+          <div className="sheet-actions">
+            <button className="btn btn-danger" disabled={busy} onClick={() => void voidInvoice()}>
+              {busy ? 'Pidiendo el CAE a ARCA…' : 'Emitir nota de crédito'}
+            </button>
+            <button className="btn btn-quiet" disabled={busy} onClick={() => setVoiding(false)}>Cancelar</button>
+          </div>
+        </Sheet>
+      )}
+
+      {reinvoicing && (
+        <Sheet title="Facturar de nuevo" onClose={() => setReinvoicing(false)}>
+          <InvoiceForm
+            orderId={inv.order_id}
+            total={inv.total}
+            onDone={(i) => navigate(`/factura/${i.id}`, { replace: true })}
+            onSkip={() => setReinvoicing(false)}
+          />
+        </Sheet>
+      )}
     </div>
   )
 }

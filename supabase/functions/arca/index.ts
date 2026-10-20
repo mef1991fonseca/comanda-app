@@ -8,6 +8,7 @@
 // Acción con sesión (owner, manager o cashier del local):
 //   invoice   { order_id, receiver?: { doc_type, doc_number, condition, name } }
 //             emite Factura C (monotributo) o B/A (responsable inscripto) por el total de la comanda
+//   credit_note { invoice_id, reason? }    (owner o manager) anula la factura con nota de crédito C/B/A
 //
 // La clave privada nunca sale del servidor.
 import forge from 'npm:node-forge@1.3.1'
@@ -212,36 +213,103 @@ async function selfTest(body: { pto_vta?: number; cbte_tipo?: number }) {
 }
 
 // ---------------------------------------------------------------------------
-// Emitir la factura de una comanda
+// Pedido de CAE (factura o nota de crédito)
 // ---------------------------------------------------------------------------
 const arDate = () => new Date(Date.now() - 3 * 3600_000).toISOString().slice(0, 10)
 const amt = (n: number) => (Math.round(n * 100) / 100).toFixed(2)
 
+type CaeRequest = {
+  cuit: string
+  pv: number
+  cbteType: number
+  docType: number
+  docNumber: string
+  condition: number
+  total: number
+  net: number
+  vat: number
+  issuedOn: string
+  assoc?: { type: number; pv: number; number: number; cuit: string; date: string }
+}
+
+/** Pide el próximo número y el CAE. Reintenta si otro comprobante tomó el número (10016). */
+async function requestCae(r: CaeRequest): Promise<{ ok: true; number: number; cae: string; due: string | null; notes: string | null } | { ok: false; error: string }> {
+  let lastError = 'ARCA no respondió.'
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const lastXml = await wsfe('FECompUltimoAutorizado', `<ar:PtoVta>${r.pv}</ar:PtoVta><ar:CbteTipo>${r.cbteType}</ar:CbteTipo>`, r.cuit)
+      const lastErrs = errorsOf(lastXml)
+      if (lastErrs.length) return { ok: false, error: lastErrs.join(' · ') }
+      const n = Number(tag(lastXml, 'CbteNro') ?? 0) + 1
+      const iva = r.vat > 0
+        ? `<ar:Iva><ar:AlicIva><ar:Id>5</ar:Id><ar:BaseImp>${amt(r.net)}</ar:BaseImp><ar:Importe>${amt(r.vat)}</ar:Importe></ar:AlicIva></ar:Iva>`
+        : ''
+      const assoc = r.assoc
+        ? `<ar:CbtesAsoc><ar:CbteAsoc><ar:Tipo>${r.assoc.type}</ar:Tipo><ar:PtoVta>${r.assoc.pv}</ar:PtoVta><ar:Nro>${r.assoc.number}</ar:Nro><ar:Cuit>${r.assoc.cuit}</ar:Cuit><ar:CbteFch>${r.assoc.date.replace(/-/g, '')}</ar:CbteFch></ar:CbteAsoc></ar:CbtesAsoc>`
+        : ''
+      const req = `<ar:FeCAEReq><ar:FeCabReq><ar:CantReg>1</ar:CantReg><ar:PtoVta>${r.pv}</ar:PtoVta><ar:CbteTipo>${r.cbteType}</ar:CbteTipo></ar:FeCabReq><ar:FeDetReq><ar:FECAEDetRequest><ar:Concepto>1</ar:Concepto><ar:DocTipo>${r.docType}</ar:DocTipo><ar:DocNro>${r.docNumber}</ar:DocNro><ar:CbteDesde>${n}</ar:CbteDesde><ar:CbteHasta>${n}</ar:CbteHasta><ar:CbteFch>${r.issuedOn.replace(/-/g, '')}</ar:CbteFch><ar:ImpTotal>${amt(r.total)}</ar:ImpTotal><ar:ImpTotConc>0</ar:ImpTotConc><ar:ImpNeto>${amt(r.net)}</ar:ImpNeto><ar:ImpOpEx>0</ar:ImpOpEx><ar:ImpTrib>0</ar:ImpTrib><ar:ImpIVA>${amt(r.vat)}</ar:ImpIVA><ar:MonId>PES</ar:MonId><ar:MonCotiz>1</ar:MonCotiz><ar:CondicionIVAReceptorId>${r.condition}</ar:CondicionIVAReceptorId>${assoc}${iva}</ar:FECAEDetRequest></ar:FeDetReq></ar:FeCAEReq>`
+      const res = await wsfe('FECAESolicitar', req, r.cuit)
+      const det = tag(res, 'FECAEDetResponse') ?? ''
+      const result = tag(det, 'Resultado') ?? tag(res, 'Resultado')
+      const obs = tags(det, 'Obs').map((o) => `${tag(o, 'Code')}: ${unescape(tag(o, 'Msg') ?? '')}`)
+      const errs = errorsOf(res)
+      if (result === 'A') {
+        const due = tag(det, 'CAEFchVto') ?? ''
+        return {
+          ok: true,
+          number: n,
+          cae: tag(det, 'CAE') ?? '',
+          due: due ? `${due.slice(0, 4)}-${due.slice(4, 6)}-${due.slice(6, 8)}` : null,
+          notes: obs.join(' · ') || null,
+        }
+      }
+      lastError = [...errs, ...obs].join(' · ') || 'ARCA rechazó el comprobante.'
+      if (!/10016/.test(lastError)) break
+    }
+  } catch (e) {
+    lastError = (e as Error).message
+  }
+  return { ok: false, error: lastError }
+}
+
+async function memberRole(restaurantId: string, userId: string) {
+  const { data } = await admin.from('restaurant_members').select('role').eq('restaurant_id', restaurantId).eq('user_id', userId).eq('active', true).maybeSingle()
+  return (data?.role as string | undefined) ?? null
+}
+
+async function fiscalFor(restaurantId: string) {
+  const { data: fs } = await admin.from('fiscal_settings').select('*').eq('restaurant_id', restaurantId).maybeSingle()
+  if (!fs?.enabled) return { fs: null, error: 'Activá la facturación en Más → Facturación.' }
+  if (fs.environment !== ENV) return { fs: null, error: 'El ambiente de facturación no coincide con el del servidor.' }
+  return { fs, error: null }
+}
+
+// ---------------------------------------------------------------------------
+// Emitir la factura de una comanda
+// ---------------------------------------------------------------------------
 async function issueInvoice(userId: string, body: { order_id?: string; receiver?: Record<string, unknown> }) {
   const { data: order } = await admin
     .from('orders')
     .select('id, restaurant_id, number, status, total, paid_total')
     .eq('id', String(body.order_id ?? ''))
     .maybeSingle()
-  const { data: member } = order
-    ? await admin.from('restaurant_members').select('role').eq('restaurant_id', order.restaurant_id).eq('user_id', userId).eq('active', true).maybeSingle()
-    : { data: null }
-  if (!order || !member) return fail('No se encontró la comanda.', 404)
-  if (!['owner', 'manager', 'cashier'].includes(member.role)) return fail('Tu rol no puede facturar.', 403)
+  const role = order ? await memberRole(order.restaurant_id, userId) : null
+  if (!order || !role) return fail('No se encontró la comanda.', 404)
+  if (!['owner', 'manager', 'cashier'].includes(role)) return fail('Tu rol no puede facturar.', 403)
   const total = Number(order.total)
   if (!(total > 0)) return fail('La comanda no tiene importe para facturar.')
   if (order.status !== 'closed' && Number(order.paid_total) + 0.009 < total) return fail('Cobrá la comanda antes de facturar.')
 
-  const { data: done } = await admin.from('invoices').select('*').eq('order_id', order.id).eq('status', 'authorized').maybeSingle()
+  const { data: done } = await admin
+    .from('invoices').select('*').eq('order_id', order.id).eq('status', 'authorized').in('cbte_type', [1, 6, 11]).is('credit_note_id', null).maybeSingle()
   if (done) return json({ invoice: done })
 
-  const { data: fs } = await admin.from('fiscal_settings').select('*').eq('restaurant_id', order.restaurant_id).maybeSingle()
-  if (!fs?.enabled) return fail('Activá la facturación en Más → Facturación.')
-  if (fs.environment !== ENV) return fail('El ambiente de facturación no coincide con el del servidor.')
+  const { fs, error: fsError } = await fiscalFor(order.restaurant_id)
+  if (!fs) return fail(fsError!)
 
   // Receptor: consumidor final salvo que se indique DNI o CUIT
   const r = body.receiver ?? {}
-  let docType = Number(r.doc_type ?? 99)
+  const docType = Number(r.doc_type ?? 99)
   let docNumber = String(r.doc_number ?? '0').replace(/\D/g, '') || '0'
   let condition = Number(r.condition ?? 5)
   if (![80, 96, 99].includes(docType)) return fail('Tipo de documento no válido.')
@@ -255,13 +323,12 @@ async function issueInvoice(userId: string, body: { order_id?: string; receiver?
   const cbteType = ri ? (condition === 1 ? 1 : 6) : 11
   const net = ri ? Math.round((total / 1.21) * 100) / 100 : total
   const vat = ri ? Math.round((total - net) * 100) / 100 : 0
-  const pv = fs.point_of_sale
   const issuedOn = arDate()
 
   const { data: inv, error } = await admin
     .from('invoices')
     .insert({
-      restaurant_id: order.restaurant_id, order_id: order.id, environment: ENV, cbte_type: cbteType, point_of_sale: pv,
+      restaurant_id: order.restaurant_id, order_id: order.id, environment: ENV, cbte_type: cbteType, point_of_sale: fs.point_of_sale,
       issued_on: issuedOn, doc_type: docType, doc_number: docNumber, receiver_name: r.name ? String(r.name).slice(0, 120) : null,
       receiver_condition: condition, total, net, vat, created_by: userId,
     })
@@ -269,48 +336,70 @@ async function issueInvoice(userId: string, body: { order_id?: string; receiver?
     .single()
   if (error || !inv) return fail('No se pudo registrar la factura.', 500)
 
-  let lastError = 'ARCA no respondió.'
-  try {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const lastXml = await wsfe('FECompUltimoAutorizado', `<ar:PtoVta>${pv}</ar:PtoVta><ar:CbteTipo>${cbteType}</ar:CbteTipo>`, fs.cuit)
-    const lastErrs = errorsOf(lastXml)
-    if (lastErrs.length) {
-      lastError = lastErrs.join(' · ')
-      break
-    }
-    const n = Number(tag(lastXml, 'CbteNro') ?? 0) + 1
-    const iva = ri
-      ? `<ar:Iva><ar:AlicIva><ar:Id>5</ar:Id><ar:BaseImp>${amt(net)}</ar:BaseImp><ar:Importe>${amt(vat)}</ar:Importe></ar:AlicIva></ar:Iva>`
-      : ''
-    const req = `<ar:FeCAEReq><ar:FeCabReq><ar:CantReg>1</ar:CantReg><ar:PtoVta>${pv}</ar:PtoVta><ar:CbteTipo>${cbteType}</ar:CbteTipo></ar:FeCabReq><ar:FeDetReq><ar:FECAEDetRequest><ar:Concepto>1</ar:Concepto><ar:DocTipo>${docType}</ar:DocTipo><ar:DocNro>${docNumber}</ar:DocNro><ar:CbteDesde>${n}</ar:CbteDesde><ar:CbteHasta>${n}</ar:CbteHasta><ar:CbteFch>${issuedOn.replace(/-/g, '')}</ar:CbteFch><ar:ImpTotal>${amt(total)}</ar:ImpTotal><ar:ImpTotConc>0</ar:ImpTotConc><ar:ImpNeto>${amt(net)}</ar:ImpNeto><ar:ImpOpEx>0</ar:ImpOpEx><ar:ImpTrib>0</ar:ImpTrib><ar:ImpIVA>${amt(vat)}</ar:ImpIVA><ar:MonId>PES</ar:MonId><ar:MonCotiz>1</ar:MonCotiz><ar:CondicionIVAReceptorId>${condition}</ar:CondicionIVAReceptorId>${iva}</ar:FECAEDetRequest></ar:FeDetReq></ar:FeCAEReq>`
-    const res = await wsfe('FECAESolicitar', req, fs.cuit)
-    const det = tag(res, 'FECAEDetResponse') ?? ''
-    const result = tag(det, 'Resultado') ?? tag(res, 'Resultado')
-    const obs = tags(det, 'Obs').map((o) => `${tag(o, 'Code')}: ${unescape(tag(o, 'Msg') ?? '')}`)
-    const errs = errorsOf(res)
-    if (result === 'A') {
-      const due = tag(det, 'CAEFchVto') ?? ''
-      const { data: ok } = await admin
-        .from('invoices')
-        .update({
-          status: 'authorized', number: n, cae: tag(det, 'CAE'),
-          cae_due: due ? `${due.slice(0, 4)}-${due.slice(4, 6)}-${due.slice(6, 8)}` : null,
-          notes: obs.join(' · ') || null, error: null,
-        })
-        .eq('id', inv.id)
-        .select('*')
-        .single()
-      return json({ invoice: ok })
-    }
-    lastError = [...errs, ...obs].join(' · ') || 'ARCA rechazó el comprobante.'
-    // 10016: el número no es el siguiente (otra factura salió al mismo tiempo): se reintenta
-    if (!/10016/.test(lastError)) break
+  const res = await requestCae({ cuit: fs.cuit, pv: fs.point_of_sale, cbteType, docType, docNumber, condition, total, net, vat, issuedOn })
+  if (!res.ok) {
+    await admin.from('invoices').update({ status: 'rejected', error: res.error }).eq('id', inv.id)
+    return fail(`ARCA rechazó la factura: ${res.error}`, 502)
   }
-  } catch (e) {
-    lastError = (e as Error).message
+  const { data: ok } = await admin
+    .from('invoices')
+    .update({ status: 'authorized', number: res.number, cae: res.cae, cae_due: res.due, notes: res.notes, error: null })
+    .eq('id', inv.id)
+    .select('*')
+    .single()
+  return json({ invoice: ok })
+}
+
+// ---------------------------------------------------------------------------
+// Anular una factura con nota de crédito por el total
+// ---------------------------------------------------------------------------
+const CREDIT_FOR: Record<number, number> = { 1: 3, 6: 8, 11: 13 }
+
+async function creditNote(userId: string, body: { invoice_id?: string; reason?: string }) {
+  const { data: inv } = await admin.from('invoices').select('*').eq('id', String(body.invoice_id ?? '')).maybeSingle()
+  const role = inv ? await memberRole(inv.restaurant_id, userId) : null
+  if (!inv || !role) return fail('No se encontró la factura.', 404)
+  if (!['owner', 'manager'].includes(role)) return fail('Solo el dueño o el encargado pueden anular facturas.', 403)
+  if (inv.status !== 'authorized' || !CREDIT_FOR[inv.cbte_type]) return fail('Solo se anulan facturas autorizadas.')
+  if (inv.credit_note_id) {
+    const { data: nc } = await admin.from('invoices').select('*').eq('id', inv.credit_note_id).single()
+    return json({ invoice: nc })
   }
-  await admin.from('invoices').update({ status: 'rejected', error: lastError }).eq('id', inv.id)
-  return fail(`ARCA rechazó la factura: ${lastError}`, 502)
+  if (inv.environment !== ENV) return fail('La factura es de otro ambiente.')
+  const { fs, error: fsError } = await fiscalFor(inv.restaurant_id)
+  if (!fs) return fail(fsError!)
+
+  const cbteType = CREDIT_FOR[inv.cbte_type]!
+  const issuedOn = arDate()
+  const { data: nc, error } = await admin
+    .from('invoices')
+    .insert({
+      restaurant_id: inv.restaurant_id, order_id: inv.order_id, environment: ENV, cbte_type: cbteType, point_of_sale: inv.point_of_sale,
+      issued_on: issuedOn, doc_type: inv.doc_type, doc_number: inv.doc_number, receiver_name: inv.receiver_name,
+      receiver_condition: inv.receiver_condition, total: inv.total, net: inv.net, vat: inv.vat, created_by: userId,
+      associated_id: inv.id, reason: body.reason ? String(body.reason).slice(0, 200) : null,
+    })
+    .select('*')
+    .single()
+  if (error || !nc) return fail('No se pudo registrar la nota de crédito.', 500)
+
+  const res = await requestCae({
+    cuit: fs.cuit, pv: inv.point_of_sale, cbteType, docType: inv.doc_type, docNumber: inv.doc_number, condition: inv.receiver_condition,
+    total: Number(inv.total), net: Number(inv.net), vat: Number(inv.vat), issuedOn,
+    assoc: { type: inv.cbte_type, pv: inv.point_of_sale, number: Number(inv.number), cuit: fs.cuit, date: inv.issued_on },
+  })
+  if (!res.ok) {
+    await admin.from('invoices').update({ status: 'rejected', error: res.error }).eq('id', nc.id)
+    return fail(`ARCA rechazó la nota de crédito: ${res.error}`, 502)
+  }
+  const { data: ok } = await admin
+    .from('invoices')
+    .update({ status: 'authorized', number: res.number, cae: res.cae, cae_due: res.due, notes: res.notes, error: null })
+    .eq('id', nc.id)
+    .select('*')
+    .single()
+  await admin.from('invoices').update({ credit_note_id: nc.id }).eq('id', inv.id)
+  return json({ invoice: ok })
 }
 
 // ---------------------------------------------------------------------------
@@ -319,11 +408,11 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return fail('Método no permitido', 405)
   try {
     const body = await req.json().catch(() => ({}))
-    if (body.action === 'invoice') {
+    if (body.action === 'invoice' || body.action === 'credit_note') {
       const jwt = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '')
       const { data } = jwt ? await admin.auth.getUser(jwt) : { data: { user: null } }
       if (!data.user) return fail('Iniciá sesión.', 401)
-      return await issueInvoice(data.user.id, body)
+      return body.action === 'invoice' ? await issueInvoice(data.user.id, body) : await creditNote(data.user.id, body)
     }
     const adminKey = req.headers.get('x-admin-key') ?? ''
     const expected = await getSecret('arca_admin_key')

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase, errorMessage } from '../lib/supabase'
 import { useCurrentRestaurant } from '../lib/restaurant'
 import { formatMoney } from '../lib/format'
-import { cbteLabel, invoiceNumber, ivaConditionLabel, type FiscalSettings, type Invoice } from '../lib/invoices'
+import { cbteLabel, invoiceNumber, isCreditNote, ivaConditionLabel, type FiscalSettings, type Invoice } from '../lib/invoices'
 import type { Enums } from '../lib/database.types'
 import { TopBar } from '../components/AppShell'
 
@@ -163,10 +163,13 @@ export function Facturacion() {
               {invoices.map((inv) => (
                 <button key={inv.id} className="list-row" onClick={() => navigate(`/factura/${inv.id}`)}>
                   <span className="product-line">
-                    <span>{cbteLabel[inv.cbte_type]?.name} {invoiceNumber(inv)}</span>
+                    <span>
+                      {cbteLabel[inv.cbte_type]?.name} {invoiceNumber(inv)}
+                      {inv.credit_note_id && <span className="badge badge-muted">Anulada</span>}
+                    </span>
                     <span className="product-sub">{new Date(`${inv.issued_on}T12:00:00`).toLocaleDateString('es-AR')}</span>
                   </span>
-                  <span className="nowrap">{formatMoney(inv.total)}</span>
+                  <span className="nowrap">{isCreditNote(inv.cbte_type) ? '−' : ''}{formatMoney(inv.total)}</span>
                 </button>
               ))}
             </div>

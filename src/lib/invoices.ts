@@ -13,7 +13,12 @@ export const cbteLabel: Record<number, { name: string; letter: string; code: str
   1: { name: 'Factura A', letter: 'A', code: '01' },
   6: { name: 'Factura B', letter: 'B', code: '06' },
   11: { name: 'Factura C', letter: 'C', code: '11' },
+  3: { name: 'Nota de crédito A', letter: 'A', code: '03' },
+  8: { name: 'Nota de crédito B', letter: 'B', code: '08' },
+  13: { name: 'Nota de crédito C', letter: 'C', code: '13' },
 }
+
+export const isCreditNote = (cbteType: number) => [3, 8, 13].includes(cbteType)
 
 export const ivaConditionLabel = { monotributo: 'Responsable Monotributo', responsable_inscripto: 'IVA Responsable Inscripto' } as const
 
@@ -54,8 +59,13 @@ export function fiscalQrUrl(inv: Invoice, cuit: string) {
 
 export type Receiver = { doc_type: number; doc_number: string; condition: number; name?: string }
 
-export async function issueInvoice(orderId: string, receiver?: Receiver) {
-  const { data, error } = await supabase.functions.invoke('arca', { body: { action: 'invoice', order_id: orderId, receiver } })
+export const issueInvoice = (orderId: string, receiver?: Receiver) => callArca({ action: 'invoice', order_id: orderId, receiver })
+
+/** Anula una factura con una nota de crédito por el total (dueño o encargado). */
+export const issueCreditNote = (invoiceId: string, reason?: string) => callArca({ action: 'credit_note', invoice_id: invoiceId, reason })
+
+async function callArca(body: Record<string, unknown>) {
+  const { data, error } = await supabase.functions.invoke('arca', { body })
   if (error) {
     if (error instanceof FunctionsHttpError) {
       const payload = (await error.context.json().catch(() => null)) as { error?: string } | null

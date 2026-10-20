@@ -553,7 +553,31 @@ with sync_playwright() as p:
     expect(page.locator(".invoice-totals")).to_contain_text("$ 10.330,58")   # neto de 12.500
     expect(page.locator(".invoice-qr svg")).to_be_visible()
     shot(page, "s7-03-factura")
-    page.get_by_role("button", name="Volver").click()
+
+    # anular con nota de crédito y volver a facturar a consumidor final
+    page.get_by_role("button", name="Anular con nota de crédito").click()
+    page.get_by_label("Motivo").fill("CUIT del cliente mal cargado")
+    shot(page, "s7-04-anular")
+    page.get_by_role("button", name="Emitir nota de crédito").click()
+    expect(page.locator(".invoice-kind")).to_have_text("Nota de crédito A")
+    expect(page.locator(".invoice-link")).to_contain_text("Esta nota de crédito anula la Factura A N.º 00003-00000001")
+    expect(page.locator(".invoice-letter")).to_contain_text("Cód. 03")
+    expect(page.locator(".invoice-assoc")).to_contain_text("Comprobante asociado: Factura A N.º 00003-00000001")
+    expect(page.locator(".invoice-assoc")).to_contain_text("Motivo: CUIT del cliente mal cargado")
+    shot(page, "s7-05-nota-credito")
+    page.locator(".invoice-link").get_by_role("button").click()
+    expect(page.locator(".invoice-link")).to_contain_text("Factura anulada con la Nota de crédito A N.º 00003-00000001")
+    expect(page.get_by_role("button", name="Anular con nota de crédito")).to_have_count(0)
+    page.get_by_role("button", name="Facturar la comanda de nuevo").click()
+    page.get_by_role("dialog", name="Facturar de nuevo").get_by_role("button", name="Emitir factura").click()
+    expect(page.locator(".invoice-kind")).to_have_text("Factura B")
+    expect(page.locator(".invoice")).to_contain_text("N.º 00003-00000001")
+    assert fake.db["invoices"][0]["reason"] is None and fake.db["invoices"][1]["reason"] == "CUIT del cliente mal cargado"
+    page.goto(BASE + "/facturacion")
+    expect(page.locator(".list-row").filter(has_text="Factura A")).to_contain_text("Anulada")
+    expect(page.locator(".list-row").filter(has_text="Nota de crédito A")).to_contain_text("−$ 12.500")
+    shot(page, "s7-06-listado")
+    page.get_by_role("link", name="Salón").click()
     expect(page.get_by_role("button", name="Mesa 9, libre")).to_be_visible()
 
     # ---------- Operación de salón: mozo, pasar de mesa, unir, imprimir y dividir ----------

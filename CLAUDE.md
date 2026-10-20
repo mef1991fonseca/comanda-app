@@ -59,6 +59,9 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
   (responsable inscripto); pide el último número, reintenta ante 10016 y guarda el CAE en `invoices`
   (el cliente solo lee). Ticket WSAA cacheado en `arca_tokens` (ARCA no da otro mientras esté vigente).
   Pantallas: Más → Facturación, cierre "Cerrar y facturar" en el cobro, `/factura/:id` imprimible con QR fiscal.
+  Notas de crédito (acción `credit_note`, owner/manager): por el total, tipo 3/8/13 con `CbtesAsoc`, en la misma
+  tabla `invoices` (`associated_id` → factura; la factura guarda `credit_note_id`). Una factura vigente por comanda
+  (índice parcial sin `credit_note_id`), así que después de anular se puede facturar de nuevo desde `/factura/:id`.
 - **Operación de salón:** `orders.waiter_id` (por defecto quien abre; trigger `orders_salon_guard` exige que sea
   del equipo y que solo se cambie de mesa una comanda abierta). RPC `merge_orders(destino, origen)`: pasa los
   ítems, recalcula el destino, suma comensales y anula el origen ("Unida a la comanda #N"); no une comandas con
@@ -130,7 +133,7 @@ Salón, Comandas, Caja, Más; Cocina para ellos está en Más.
 - Cantidades con decimales se escriben con coma (es-AR): `parseAmount` toma el punto como separador de miles.
 - Mercado Pago: hoy usa una sola cuenta (la de prueba de ALTech) para todos los locales. Para producción falta
   OAuth para que cada local vincule su cuenta, y cargar la dirección real del local en la sucursal de MP.
-- ARCA: notas de crédito (anular una factura), pasar a producción (certificado de producción y delegación de
+- ARCA: notas de crédito parciales, pasar a producción (certificado de producción y delegación de
   cada local) y facturar desde reportes/comandas viejas.
 - Dominio propio (hoy el subdominio de pages.dev).
 - Confirmación de email: Supabase usa el SMTP por defecto (límite bajo); configurar SMTP propio antes de pilotos.

@@ -126,7 +126,7 @@ export type Database = {
         Relationships: []
       }
       invoices: {
-        Row: { cae: string | null; cae_due: string | null; cbte_type: number; created_at: Ts; created_by: string | null; doc_number: string; doc_type: number; environment: string; error: string | null; id: string; issued_on: string; net: number; notes: string | null; number: number | null; order_id: string; point_of_sale: number; receiver_condition: number; receiver_name: string | null; restaurant_id: string; status: Database['public']['Enums']['invoice_status']; total: number; vat: number }
+        Row: { associated_id: string | null; credit_note_id: string | null; reason: string | null; cae: string | null; cae_due: string | null; cbte_type: number; created_at: Ts; created_by: string | null; doc_number: string; doc_type: number; environment: string; error: string | null; id: string; issued_on: string; net: number; notes: string | null; number: number | null; order_id: string; point_of_sale: number; receiver_condition: number; receiver_name: string | null; restaurant_id: string; status: Database['public']['Enums']['invoice_status']; total: number; vat: number }
         Insert: { id?: string }
         Update: { id?: string }
         Relationships: []

@@ -393,6 +393,17 @@ class FakeSupabase:
 
     # ---------- Edge function arca ----------
     def _arca(self, body):
+        if body.get("action") == "credit_note":
+            inv = self._find("invoices", body["invoice_id"])
+            if not inv or inv.get("credit_note_id"):
+                raise BusinessError("Solo se anulan facturas autorizadas.")
+            tipo = {1: 3, 6: 8, 11: 13}[inv["cbte_type"]]
+            n = 1 + max([i["number"] for i in self.db["invoices"] if i["cbte_type"] == tipo] or [0])
+            nc = dict(inv, id=str(uuid.uuid4()), cbte_type=tipo, number=n, cae="76999999999999", associated_id=inv["id"],
+                      credit_note_id=None, reason=body.get("reason"), created_at=now_iso())
+            self.db["invoices"].append(nc)
+            inv["credit_note_id"] = nc["id"]
+            return {"invoice": nc}
         if body.get("action") != "invoice":
             raise BusinessError("No autorizado.")
         order = self._find("orders", body["order_id"])
@@ -413,7 +424,8 @@ class FakeSupabase:
                "doc_type": r.get("doc_type", 99), "doc_number": r.get("doc_number", "0"), "receiver_name": r.get("name"),
                "receiver_condition": cond, "total": total, "net": net, "vat": round(total - net, 2), "cae": "76123456789012",
                "cae_due": time.strftime("%Y-%m-%d", time.gmtime(time.time() + 10 * 86400)), "status": "authorized",
-               "error": None, "notes": None, "created_by": USER_ID, "created_at": now_iso()}
+               "error": None, "notes": None, "created_by": USER_ID, "created_at": now_iso(),
+               "associated_id": None, "credit_note_id": None, "reason": None}
         self.db["invoices"].append(inv)
         return {"invoice": inv}
 

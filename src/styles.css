@@ -1859,3 +1859,6 @@ a.btn {
   font-size: 0.9375rem;
   color: var(--ink-soft);
 }
+.invoice-link { width: 100%; max-width: 720px; }
+.badge-muted { background: #e6e9e7; color: var(--ink-soft); margin-left: 8px; }
+.invoice-assoc { font-size: 0.875rem; border-bottom: 1px solid #ccc; padding-bottom: 10px; }
