@@ -119,6 +119,30 @@ export type Database = {
           { foreignKeyName: 'restaurant_members_restaurant_id_fkey'; columns: ['restaurant_id']; isOneToOne: false; referencedRelation: 'restaurants'; referencedColumns: ['id'] },
         ]
       }
+      suppliers: {
+        Row: { active: boolean; created_at: Ts; cuit: string | null; email: string | null; id: string; name: string; notes: string | null; phone: string | null; restaurant_id: string; updated_at: Ts }
+        Insert: { active?: boolean; cuit?: string | null; email?: string | null; id?: string; name: string; notes?: string | null; phone?: string | null; restaurant_id: string }
+        Update: Partial<Database['public']['Tables']['suppliers']['Insert']>
+        Relationships: []
+      }
+      purchases: {
+        Row: { cancelled_at: Ts | null; category: Database['public']['Enums']['expense_category']; created_at: Ts; created_by: string | null; doc_kind: string; doc_number: string | null; due_on: string | null; id: string; issued_on: string; notes: string | null; restaurant_id: string; supplier_id: string; total: number }
+        Insert: { id?: string }
+        Update: { id?: string }
+        Relationships: []
+      }
+      purchase_items: {
+        Row: { description: string; id: string; ingredient_id: string | null; line_total: number; purchase_id: string; quantity: number; restaurant_id: string }
+        Insert: { id?: string }
+        Update: { id?: string }
+        Relationships: []
+      }
+      supplier_movements: {
+        Row: { amount: number; cash_movement_id: string | null; created_at: Ts; created_by: string | null; id: string; kind: 'purchase' | 'payment' | 'reversal'; note: string | null; payment_method_id: string | null; purchase_id: string | null; restaurant_id: string; supplier_id: string }
+        Insert: { id?: string }
+        Update: { id?: string }
+        Relationships: []
+      }
       customers: {
         Row: { active: boolean; created_at: Ts; credit_limit: number | null; doc_number: string | null; doc_type: number | null; email: string | null; id: string; iva_condition: number; name: string; notes: string | null; phone: string | null; restaurant_id: string; updated_at: Ts }
         Insert: { active?: boolean; credit_limit?: number | null; doc_number?: string | null; doc_type?: number | null; email?: string | null; id?: string; iva_condition?: number; name: string; notes?: string | null; phone?: string | null; restaurant_id: string }
@@ -181,6 +205,10 @@ export type Database = {
       }
     }
     Views: {
+      supplier_balances: {
+        Row: { balance: number; id: string; restaurant_id: string }
+        Relationships: []
+      }
       customer_balances: {
         Row: { balance: number; id: string; last_movement_at: Ts | null; restaurant_id: string }
         Relationships: []
@@ -190,6 +218,18 @@ export type Database = {
       accept_invite: {
         Args: { p_token: string }
         Returns: string
+      }
+      supplier_payment: {
+        Args: { p_supplier: string; p_amount: number; p_method: string; p_note?: string }
+        Returns: number
+      }
+      register_purchase: {
+        Args: { p_purchase: Json }
+        Returns: string
+      }
+      cancel_purchase: {
+        Args: { p_purchase: string; p_reason?: string }
+        Returns: undefined
       }
       customer_payment: {
         Args: { p_customer: string; p_amount: number; p_method: string; p_note?: string }
@@ -222,6 +262,7 @@ export type Database = {
     }
     Enums: {
       item_status: 'pending' | 'sent' | 'preparing' | 'ready' | 'delivered' | 'cancelled'
+      expense_category: 'mercaderia' | 'bebidas' | 'descartables' | 'servicios' | 'alquiler' | 'sueldos' | 'impuestos' | 'mantenimiento' | 'otros'
       iva_condition: 'monotributo' | 'responsable_inscripto'
       invoice_status: 'pending' | 'authorized' | 'rejected'
       mp_charge_status: 'created' | 'processed' | 'canceled' | 'expired' | 'refunded' | 'failed'

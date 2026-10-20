@@ -20,9 +20,11 @@ TABLES = [
     "categories", "products", "modifier_groups", "modifiers", "product_modifier_groups",
     "orders", "order_items", "payments", "payment_methods", "registers", "cash_sessions", "cash_movements",
     "ingredients", "recipe_items", "stock_movements", "restaurant_invites", "mp_charges", "fiscal_settings", "invoices", "customers", "customer_movements", "customer_balances",
+    "suppliers", "purchases", "purchase_items", "supplier_movements", "supplier_balances",
 ]
 
 DEFAULTS = {
+    "suppliers": {"active": True, "cuit": None, "phone": None, "email": None, "notes": None},
     "customers": {"active": True, "credit_limit": None, "doc_type": None, "doc_number": None, "iva_condition": 5,
                   "phone": None, "email": None, "notes": None},
     "categories": {"active": True, "sort_order": 0, "parent_id": None},
@@ -553,6 +555,39 @@ class FakeSupabase:
 
         if path == "/rest/v1/rpc/create_restaurant":
             return reply(200, self._create_restaurant(json.loads(req.post_data or "{}")))
+        if path == "/rest/v1/rpc/register_purchase":
+            p = json.loads(req.post_data or "{}")["p_purchase"]
+            sup = self._find("suppliers", p["supplier_id"])
+            pid = str(uuid.uuid4())
+            self.db["purchases"].append({"id": pid, "restaurant_id": sup["restaurant_id"], "supplier_id": sup["id"],
+                "issued_on": p["issued_on"], "due_on": p.get("due_on"), "doc_kind": p.get("doc_kind") or "factura",
+                "doc_number": p.get("doc_number") or None, "category": p.get("category") or "mercaderia", "total": p["total"],
+                "notes": p.get("notes") or None, "cancelled_at": None, "created_by": USER_ID, "created_at": now_iso()})
+            for it in p["items"]:
+                ing = self._find("ingredients", it["ingredient_id"]) if it.get("ingredient_id") else None
+                self.db["purchase_items"].append({"id": str(uuid.uuid4()), "restaurant_id": sup["restaurant_id"], "purchase_id": pid,
+                    "ingredient_id": it.get("ingredient_id"), "description": it.get("description") or (ing or {}).get("name"),
+                    "quantity": it["quantity"], "line_total": it["line_total"]})
+                if ing:
+                    self._apply_stock({"ingredient_id": ing["id"], "qty_delta": it["quantity"], "reason": "purchase",
+                                       "unit_cost": round(it["line_total"] / it["quantity"], 4) if it["line_total"] else None})
+            mv = lambda kind, amount, **kw: self.db["supplier_movements"].append(dict({"id": str(uuid.uuid4()),
+                "restaurant_id": sup["restaurant_id"], "supplier_id": sup["id"], "kind": kind, "amount": amount, "purchase_id": pid,
+                "payment_method_id": None, "cash_movement_id": None, "note": None, "created_by": USER_ID, "created_at": now_iso()}, **kw))
+            mv("purchase", p["total"], note=p.get("doc_number"))
+            if p.get("paid"):
+                mv("payment", -p["paid"]["amount"], payment_method_id=p["paid"]["method_id"])
+            return reply(200, pid)
+        if path == "/rest/v1/rpc/supplier_payment":
+            a = json.loads(req.post_data or "{}")
+            sup = self._find("suppliers", a["p_supplier"])
+            bal = sum(m["amount"] for m in self.db["supplier_movements"] if m["supplier_id"] == sup["id"])
+            if a["p_amount"] > bal + 0.009:
+                return reply(400, {"code": "P0001", "message": "El pago supera lo que se le debe"})
+            self.db["supplier_movements"].append({"id": str(uuid.uuid4()), "restaurant_id": sup["restaurant_id"], "supplier_id": sup["id"],
+                "kind": "payment", "amount": -a["p_amount"], "purchase_id": None, "payment_method_id": a["p_method"],
+                "cash_movement_id": None, "note": a.get("p_note"), "created_by": USER_ID, "created_at": now_iso()})
+            return reply(200, bal - a["p_amount"])
         if path == "/rest/v1/rpc/customer_payment":
             a = json.loads(req.post_data or "{}")
             bal = sum(m["amount"] for m in self.db["customer_movements"] if m["customer_id"] == a["p_customer"])
@@ -610,6 +645,10 @@ class FakeSupabase:
                                                           "access-control-expose-headers": "content-range",
                                                           "content-range": f"0-{max(n - 1, 0)}/{n}"}, body="")
             if method == "GET":
+                if table == "supplier_balances":
+                    rows = [{"id": x["id"], "restaurant_id": x["restaurant_id"],
+                             "balance": sum(m["amount"] for m in self.db["supplier_movements"] if m["supplier_id"] == x["id"])}
+                            for x in self.db["suppliers"]]
                 if table == "customer_balances":
                     rows = [{"id": c["id"], "restaurant_id": c["restaurant_id"],
                              "balance": sum(m["amount"] for m in self.db["customer_movements"] if m["customer_id"] == c["id"])}
