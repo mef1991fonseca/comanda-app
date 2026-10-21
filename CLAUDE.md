@@ -23,7 +23,9 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
     propina + ingresos − retiros).
   - Precio de ítems: el trigger `order_items_enrich` toma nombre, precio y estación del producto y
     reconstruye los modificadores desde sus ids (el cliente manda `modifiers: [{id}]`). El dispositivo no
-    puede imponer precios. Validación de mínimos/máximos de cada grupo: hoy solo en el cliente (`validateSelection`).
+    puede imponer precios. También valida mínimos/máximos de cada grupo del producto y que no se repita una
+    opción; un grupo obligatorio con menos opciones activas que su mínimo exige solo las que hay (igual que
+    `validateSelection` en el cliente).
   - Pagos (`payments_before_insert`): solo sobre comandas abiertas, nunca más de lo que falta, se
     asocian a la caja abierta del local; el efectivo exige caja abierta.
   - Descuentos (`orders.discount_amount`): solo owner/manager/cashier (chequeo en `orders_before_update`).
@@ -152,7 +154,6 @@ Salón, Comandas, Caja, Más; Cocina para ellos está en Más.
 ## Pendientes conocidos
 
 - Sin conexión no se puede cobrar (los pagos dependen de la caja abierta y del saldo en el servidor).
-- Validar mínimos/máximos de modificadores también en el servidor.
 - Caja: hoy se usa la primera caja activa del local; múltiples cajas y arqueo ciego quedan para más adelante.
 - Impresión directa ESC/POS (sin el diálogo del navegador) y salida automática a la impresora de cocina al enviar.
 - Cantidades con decimales se escriben con coma (es-AR): `parseAmount` toma el punto como separador de miles.

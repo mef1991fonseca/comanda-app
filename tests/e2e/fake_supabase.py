@@ -143,6 +143,17 @@ class FakeSupabase:
             if not m or m["group_id"] not in linked:
                 raise BusinessError("Hay modificadores que no corresponden a este producto")
             mods.append({"id": m["id"], "name": m["name"], "price_delta": m["price_delta"]})
+        if len({m["id"] for m in mods}) != len(mods):
+            raise BusinessError("Hay una opción repetida")
+        for gid in linked:
+            g = self._find("modifier_groups", gid)
+            active = [m for m in self.db["modifiers"] if m["group_id"] == gid and m["active"]]
+            chosen = sum(1 for m in mods if any(a["id"] == m["id"] for a in active))
+            need = min(g["min_select"], len(active))
+            if chosen > g["max_select"]:
+                raise BusinessError(f"En {g['name']} se pueden elegir hasta {g['max_select']}")
+            if chosen < need:
+                raise BusinessError(f"Elegí una opción de {g['name']}" if need == 1 else f"Elegí al menos {need} en {g['name']}")
         item["modifiers"] = mods
         item["modifiers_total"] = sum(m["price_delta"] for m in mods)
 

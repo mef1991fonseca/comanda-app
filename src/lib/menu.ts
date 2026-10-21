@@ -103,8 +103,9 @@ export function useProductsByCategory(menu: Menu) {
 export function validateSelection(groups: ModifierGroup[], selected: Set<string>): string | null {
   for (const g of groups) {
     const count = g.modifiers.filter((m) => selected.has(m.id)).length
-    if (count < g.min_select) {
-      return g.min_select === 1 ? `Elegí una opción de ${g.name}.` : `Elegí al menos ${g.min_select} en ${g.name}.`
+    const min = Math.min(g.min_select, g.modifiers.length) // igual que el servidor: un grupo sin opciones activas no bloquea
+    if (count < min) {
+      return min === 1 ? `Elegí una opción de ${g.name}.` : `Elegí al menos ${min} en ${g.name}.`
     }
     if (count > g.max_select) return `En ${g.name} se pueden elegir hasta ${g.max_select}.`
   }
