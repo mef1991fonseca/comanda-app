@@ -106,8 +106,8 @@ export type Database = {
         Relationships: []
       }
       registers: {
-        Row: { active: boolean; created_at: Ts; id: string; name: string; restaurant_id: string; updated_at: Ts }
-        Insert: { active?: boolean; created_at?: Ts; id?: string; name: string; restaurant_id: string; updated_at?: Ts }
+        Row: { active: boolean; blind_close: boolean; created_at: Ts; id: string; name: string; restaurant_id: string; updated_at: Ts }
+        Insert: { active?: boolean; blind_close?: boolean; created_at?: Ts; id?: string; name: string; restaurant_id: string; updated_at?: Ts }
         Update: Partial<Database['public']['Tables']['registers']['Insert']>
         Relationships: []
       }
@@ -228,7 +228,7 @@ export type Database = {
         Returns: string
       }
       supplier_payment: {
-        Args: { p_supplier: string; p_amount: number; p_method: string; p_note?: string }
+        Args: { p_supplier: string; p_amount: number; p_method: string; p_note?: string; p_session?: string }
         Returns: number
       }
       register_purchase: {
@@ -240,7 +240,7 @@ export type Database = {
         Returns: undefined
       }
       customer_payment: {
-        Args: { p_customer: string; p_amount: number; p_method: string; p_note?: string }
+        Args: { p_customer: string; p_amount: number; p_method: string; p_note?: string; p_session?: string }
         Returns: number
       }
       merge_orders: {

@@ -55,10 +55,56 @@ export function summarize(
   }
 }
 
-/** Caja principal del local: sesión abierta (si hay), sus pagos y movimientos, y los últimos cierres. */
+// ---------- Caja de este equipo ----------
+// Cada dispositivo trabaja con una caja (la elige quien cobra). Se guarda solo en este navegador.
+const deviceKey = (restaurantId: string) => `comanda.register.${restaurantId}`
+
+export function getDeviceRegister(restaurantId: string): string | null {
+  try {
+    return localStorage.getItem(deviceKey(restaurantId))
+  } catch {
+    return null
+  }
+}
+
+export function setDeviceRegister(restaurantId: string, registerId: string) {
+  try {
+    localStorage.setItem(deviceKey(restaurantId), registerId)
+  } catch {
+    // sin almacenamiento: se elige de nuevo la próxima vez
+  }
+}
+
+/**
+ * Sesión abierta de la caja de este equipo, para mandarla con los cobros.
+ * Si este equipo no eligió caja o la suya está cerrada, devuelve undefined y el servidor decide
+ * (la caja que abrió esa persona, o la única abierta).
+ */
+export async function deviceSessionId(restaurantId: string): Promise<string | undefined> {
+  const registerId = getDeviceRegister(restaurantId)
+  if (!registerId) return undefined
+  const { data } = await supabase
+    .from('cash_sessions')
+    .select('id')
+    .eq('restaurant_id', restaurantId)
+    .eq('register_id', registerId)
+    .is('closed_at', null)
+    .maybeSingle()
+  return data?.id ?? undefined
+}
+
+/** El cajero no ve lo esperado en una caja con arqueo ciego (dueño y encargado sí). */
+export const isBlindFor = (register: Register | null | undefined, role: string) =>
+  Boolean(register?.blind_close) && role !== 'owner' && role !== 'manager'
+
+/**
+ * Cajas del local con su estado, y el detalle de la caja elegida en este equipo:
+ * sesión abierta (si hay), sus pagos y movimientos, y sus últimos cierres.
+ */
 export function useCash(restaurantId: string) {
-  const [register, setRegister] = useState<Register | null>(null)
-  const [session, setSession] = useState<CashSession | null>(null)
+  const [registers, setRegisters] = useState<Register[]>([])
+  const [openSessions, setOpenSessions] = useState<CashSession[]>([])
+  const [registerId, setRegisterIdState] = useState<string | null>(() => getDeviceRegister(restaurantId))
   const [payments, setPayments] = useState<Payment[]>([])
   const [moves, setMoves] = useState<CashMovement[]>([])
   const [methods, setMethods] = useState<PaymentMethod[]>([])
@@ -66,27 +112,47 @@ export function useCash(restaurantId: string) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const active = registers.filter((r) => r.active)
+  const register = active.find((r) => r.id === registerId) ?? active[0] ?? null
+  const session = register ? openSessions.find((s) => s.register_id === register.id) ?? null : null
+
   const reload = useCallback(async () => {
-    const [r, m, open, closed] = await Promise.all([
-      supabase.from('registers').select('*').eq('restaurant_id', restaurantId).eq('active', true).order('created_at').limit(1).maybeSingle(),
+    const [r, m, open] = await Promise.all([
+      supabase.from('registers').select('*').eq('restaurant_id', restaurantId).order('created_at'),
       supabase.from('payment_methods').select('*').eq('restaurant_id', restaurantId).order('sort_order'),
-      supabase.from('cash_sessions').select('*').eq('restaurant_id', restaurantId).is('closed_at', null).order('opened_at').limit(1).maybeSingle(),
-      supabase.from('cash_sessions').select('*').eq('restaurant_id', restaurantId).not('closed_at', 'is', null).order('closed_at', { ascending: false }).limit(10),
+      supabase.from('cash_sessions').select('*').eq('restaurant_id', restaurantId).is('closed_at', null).order('opened_at'),
     ])
-    const failed = [r, m, open, closed].find((x) => x.error)
+    const failed = [r, m, open].find((x) => x.error)
     if (failed?.error) {
       setError(errorMessage(failed.error))
       setLoading(false)
       return
     }
-    setRegister(r.data)
+    setRegisters(r.data ?? [])
     setMethods(m.data ?? [])
-    setSession(open.data)
+    setOpenSessions(open.data ?? [])
+    setError(null)
+    setLoading(false)
+  }, [restaurantId])
+
+  // Detalle de la caja elegida
+  const registerKey = register?.id ?? null
+  const sessionKey = session?.id ?? null
+  const reloadDetail = useCallback(async () => {
+    if (!registerKey) return
+    const closed = await supabase
+      .from('cash_sessions')
+      .select('*')
+      .eq('restaurant_id', restaurantId)
+      .eq('register_id', registerKey)
+      .not('closed_at', 'is', null)
+      .order('closed_at', { ascending: false })
+      .limit(10)
     setHistory(closed.data ?? [])
-    if (open.data) {
+    if (sessionKey) {
       const [p, mv] = await Promise.all([
-        supabase.from('payments').select('*').eq('cash_session_id', open.data.id),
-        supabase.from('cash_movements').select('*').eq('cash_session_id', open.data.id).order('created_at'),
+        supabase.from('payments').select('*').eq('cash_session_id', sessionKey),
+        supabase.from('cash_movements').select('*').eq('cash_session_id', sessionKey).order('created_at'),
       ])
       setPayments(p.data ?? [])
       setMoves(mv.data ?? [])
@@ -94,22 +160,50 @@ export function useCash(restaurantId: string) {
       setPayments([])
       setMoves([])
     }
-    setError(null)
-    setLoading(false)
-  }, [restaurantId])
+  }, [restaurantId, registerKey, sessionKey])
+
+  useEffect(() => {
+    void reloadDetail()
+  }, [reloadDetail])
+
+  const reloadAll = useCallback(async () => {
+    await reload()
+    await reloadDetail()
+  }, [reload, reloadDetail])
 
   useEffect(() => {
     void reload()
     const channel = supabase
       .channel(`caja-${restaurantId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments', filter: `restaurant_id=eq.${restaurantId}` }, () => void reload())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments', filter: `restaurant_id=eq.${restaurantId}` }, () => void reloadAll())
       .subscribe()
     return () => {
       void supabase.removeChannel(channel)
     }
-  }, [restaurantId, reload])
+  }, [restaurantId, reload, reloadAll])
 
-  return { register, session, payments, moves, methods, history, loading, error, reload }
+  const chooseRegister = useCallback(
+    (id: string) => {
+      setDeviceRegister(restaurantId, id)
+      setRegisterIdState(id)
+    },
+    [restaurantId],
+  )
+
+  return {
+    registers,
+    openSessions,
+    register,
+    session,
+    chooseRegister,
+    payments,
+    moves,
+    methods,
+    history,
+    loading,
+    error,
+    reload: reloadAll,
+  }
 }
 
 /** Convierte lo que escribe la persona ("12.500", "12500,50") en número. */

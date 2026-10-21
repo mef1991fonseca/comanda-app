@@ -1984,3 +1984,40 @@ a.btn {
 @media print {
   .qr-sheet { grid-template-columns: repeat(3, 1fr); max-width: none; }
 }
+
+/* ---------- Varias cajas ---------- */
+.register-picker button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+}
+.register-state {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e6e9e7;
+  color: var(--ink-soft);
+}
+.register-state.is-open {
+  background: var(--bottle-soft);
+  color: var(--bottle-deep);
+}
+.register-picker button[aria-pressed='true'] .register-state {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+.register-row {
+  display: grid;
+  gap: 10px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+.register-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.register-row.is-off {
+  opacity: 0.6;
+}

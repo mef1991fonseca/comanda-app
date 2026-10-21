@@ -24,6 +24,7 @@ TABLES = [
 ]
 
 DEFAULTS = {
+    "registers": {"active": True, "blind_close": False},
     "suppliers": {"active": True, "cuit": None, "phone": None, "email": None, "notes": None},
     "customers": {"active": True, "credit_limit": None, "doc_type": None, "doc_number": None, "iva_condition": 5,
                   "phone": None, "email": None, "notes": None},
@@ -183,6 +184,27 @@ class FakeSupabase:
         return next((s for s in self.db["cash_sessions"]
                      if s["restaurant_id"] == restaurant_id and not s.get("closed_at")), None)
 
+    def _my_role(self, restaurant_id):
+        m = next((m for m in self.db["restaurant_members"] if m["restaurant_id"] == restaurant_id and m["user_id"] == USER_ID), None)
+        return m["role"] if m else None
+
+    def _pick_session(self, restaurant_id, requested, cash):
+        """Igual que private.pick_cash_session."""
+        open_ = sorted([s for s in self.db["cash_sessions"] if s["restaurant_id"] == restaurant_id and not s.get("closed_at")],
+                       key=lambda s: s["opened_at"])
+        if requested:
+            if not any(s["id"] == requested for s in open_):
+                raise BusinessError("La caja elegida está cerrada")
+            return requested
+        mine = [s for s in open_ if s.get("opened_by") == USER_ID]
+        if mine:
+            return mine[-1]["id"]
+        if not open_:
+            return None
+        if len(open_) > 1 and cash:
+            raise BusinessError("Hay varias cajas abiertas: elegí en cuál se cobra desde la pantalla Caja")
+        return open_[0]["id"]
+
     def _before_payment(self, row):
         order = self._find("orders", row["order_id"])
         if not order or order["status"] != "open":
@@ -190,9 +212,7 @@ class FakeSupabase:
         if row["amount"] > order["total"] - order["paid_total"] + 0.009:
             raise BusinessError("El pago supera lo que falta cobrar")
         kind = (self._find("payment_methods", row["payment_method_id"]) or {}).get("kind")
-        if not row.get("cash_session_id"):
-            sess = self._open_session(row["restaurant_id"])
-            row["cash_session_id"] = sess["id"] if sess else None
+        row["cash_session_id"] = self._pick_session(row["restaurant_id"], row.get("cash_session_id"), kind == "cash")
         if kind == "cash" and not row["cash_session_id"]:
             raise BusinessError("Abrí la caja para cobrar en efectivo")
 
@@ -329,6 +349,9 @@ class FakeSupabase:
                     if m["cash_session_id"] == sess["id"])
         sess.update({"closed_at": now_iso(), "closed_by": USER_ID, "expected_cash": sess["opening_amount"] + sales + moves,
                      "counted_cash": args["p_counted"], "notes": args.get("p_notes")})
+        reg = self._find("registers", sess["register_id"])
+        if reg and reg.get("blind_close") and self._my_role(sess["restaurant_id"]) not in ("owner", "manager"):
+            return {**sess, "expected_cash": None}
         return sess
 
     def _before_insert(self, table, row):
@@ -346,9 +369,21 @@ class FakeSupabase:
             row["number"] = self.counter
             row.setdefault("opened_at", now_iso(offset_min=5))
         if table == "cash_sessions":
-            row.setdefault("opened_at", now_iso())
+            reg = self._find("registers", row["register_id"])
+            if not reg or not reg["active"]:
+                raise BusinessError("Esa caja no está habilitada")
+            row["opened_at"] = now_iso()
+            row["opened_by"] = USER_ID
             if any(x["register_id"] == row["register_id"] and not x.get("closed_at") for x in self.db["cash_sessions"]):
                 raise BusinessError("Ya hay una caja abierta")
+        if table == "cash_movements":
+            if not any(x["id"] == row["cash_session_id"] and not x.get("closed_at") for x in self.db["cash_sessions"]):
+                raise BusinessError("La caja está cerrada")
+        if table == "registers":
+            row["name"] = row["name"].strip()
+            if any(r["restaurant_id"] == row["restaurant_id"] and r["active"] and r["name"].lower() == row["name"].lower()
+                   for r in self.db["registers"]):
+                raise BusinessError("Ya hay una caja con ese nombre")
         if table == "payments":
             self._before_payment(row)
             method = self._find("payment_methods", row["payment_method_id"])
@@ -416,6 +451,11 @@ class FakeSupabase:
                 for i in self.db["order_items"]:
                     if i["order_id"] == row["id"] and i["status"] == "pending":
                         i["status"], i["sent_at"] = "sent", now_iso()
+        elif table == "registers":
+            if row["active"] and patch.get("active") is False and any(
+                    x["register_id"] == row["id"] and not x.get("closed_at") for x in self.db["cash_sessions"]):
+                raise BusinessError("Cerrá la caja antes de desactivarla")
+            row.update(patch)
         elif table == "restaurant_members":
             if row["role"] == "owner" and row["active"] and (patch.get("role", "owner") != "owner" or patch.get("active") is False) \
                     and not any(m is not row and m["restaurant_id"] == row["restaurant_id"] and m["role"] == "owner" and m["active"]
@@ -567,7 +607,7 @@ class FakeSupabase:
         for i, name in enumerate(["Cocina", "Barra"]):
             self.db["stations"].append({"id": str(uuid.uuid4()), "restaurant_id": rid, "name": name, "sort_order": i, "active": True})
         self.db["registers"].append({"id": str(uuid.uuid4()), "restaurant_id": rid, "name": "Caja principal",
-                                     "active": True, "created_at": now_iso()})
+                                     "active": True, "blind_close": False, "created_at": now_iso()})
         for i, (name, kind) in enumerate([("Efectivo", "cash"), ("Débito", "debit"), ("Crédito", "credit"),
                                           ("Transferencia", "transfer"), ("Mercado Pago", "mercadopago"),
                                           ("Cuenta corriente", "account")]):

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, errorMessage } from '../lib/supabase'
-import { parseAmount, type PaymentMethod } from '../lib/cash'
+import { parseAmount, type PaymentMethod, deviceSessionId } from '../lib/cash'
 import { formatMoney } from '../lib/format'
 import type { Order, OrderItem, Payment } from '../lib/orders'
 import type { Customer } from '../lib/customers'
@@ -137,13 +137,16 @@ export function PaySheet({
     if (!Number.isFinite(tipValue) || tipValue < 0) return setError('La propina no es válida.')
     if (change !== null && change < 0) return setError('Lo recibido no alcanza para el monto y la propina.')
     const ok = await run(() =>
-      supabase.from('payments').insert({
-        restaurant_id: order.restaurant_id,
-        order_id: order.id,
-        payment_method_id: method.id,
-        amount: amountValue,
-        tip: tipValue,
-      }),
+      deviceSessionId(order.restaurant_id).then((cash_session_id) =>
+        supabase.from('payments').insert({
+          restaurant_id: order.restaurant_id,
+          order_id: order.id,
+          payment_method_id: method.id,
+          amount: amountValue,
+          tip: tipValue,
+          ...(cash_session_id ? { cash_session_id } : {}),
+        }),
+      ),
     )
     if (ok) {
       setTip('')

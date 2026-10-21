@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase, errorMessage } from '../lib/supabase'
 import { useCurrentRestaurant } from '../lib/restaurant'
 import { formatMoney } from '../lib/format'
-import { parseAmount, type PaymentMethod } from '../lib/cash'
+import { parseAmount, type PaymentMethod, deviceSessionId } from '../lib/cash'
 import { formatCuit } from '../lib/invoices'
 import { formatQty, unitOptions, useIngredients } from '../lib/stock'
 import {
@@ -372,6 +372,7 @@ export function CompraNueva() {
     if (!(total > 0)) return setError('El total tiene que ser mayor a cero.')
     setBusy(true)
     setError(null)
+    const session = payNow === 'all' ? await deviceSessionId(restaurant.id) : undefined
     const { error } = await supabase.rpc('register_purchase', {
       p_purchase: {
         supplier_id: supplierId,
@@ -383,7 +384,7 @@ export function CompraNueva() {
         notes,
         total: Math.round(total * 100) / 100,
         items,
-        paid: payNow === 'all' ? { method_id: methodId, amount: Math.round(total * 100) / 100 } : null,
+        paid: payNow === 'all' ? { method_id: methodId, amount: Math.round(total * 100) / 100, cash_session_id: session ?? null } : null,
       },
     })
     setBusy(false)
@@ -570,13 +571,15 @@ export function Proveedor() {
   const balance = moves.reduce((s, m) => s + Number(m.amount), 0)
   const when = (iso: string) => new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })
   const methodName = (id: string | null) => methods.find((m) => m.id === id)?.name
+  const supplierRestaurant = supplier.restaurant_id
 
   async function pay() {
     const v = parseAmount(amount)
     if (!Number.isFinite(v) || v <= 0) return setError('Ingresá el monto a pagar.')
     setBusy(true)
     setError(null)
-    const { error } = await supabase.rpc('supplier_payment', { p_supplier: supplierId, p_amount: v, p_method: methodId, p_note: note.trim() || undefined })
+    const session = await deviceSessionId(supplierRestaurant)
+    const { error } = await supabase.rpc('supplier_payment', { p_supplier: supplierId, p_amount: v, p_method: methodId, p_note: note.trim() || undefined, p_session: session })
     setBusy(false)
     if (error) return setError(errorMessage(error))
     setPaying(false)

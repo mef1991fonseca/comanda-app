@@ -22,6 +22,7 @@ Nombre provisorio.
 | 12 | Estado de resultados mensual | Listo |
 | 13 | Costo histórico de lo vendido | Listo |
 | 14 | Mínimos y máximos de modificadores en el servidor | Listo |
+| 15 | Varias cajas y arqueo ciego | Listo |
 
 ## Correr el proyecto
 

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase, errorMessage } from '../lib/supabase'
 import { useCurrentRestaurant } from '../lib/restaurant'
 import { formatMoney } from '../lib/format'
-import { parseAmount, type PaymentMethod } from '../lib/cash'
+import { parseAmount, type PaymentMethod, deviceSessionId } from '../lib/cash'
 import { balanceText, movementLabel, useCustomers, type Customer, type CustomerMovement } from '../lib/customers'
 import { docTypeLabel, formatCuit } from '../lib/invoices'
 import { TopBar } from '../components/AppShell'
@@ -253,7 +253,8 @@ function DebtPaymentSheet({
     if (value > balance + 0.009) return setError(`El pago supera la deuda (${formatMoney(balance)}).`)
     setBusy(true)
     setError(null)
-    const { error } = await supabase.rpc('customer_payment', { p_customer: customer.id, p_amount: value, p_method: methodId, p_note: note.trim() || undefined })
+    const session = await deviceSessionId(customer.restaurant_id)
+    const { error } = await supabase.rpc('customer_payment', { p_customer: customer.id, p_amount: value, p_method: methodId, p_note: note.trim() || undefined, p_session: session })
     setBusy(false)
     if (error) return setError(errorMessage(error))
     onPaid()

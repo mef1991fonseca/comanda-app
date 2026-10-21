@@ -19,15 +19,25 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
   - El stock vive solo en `ingredients` y solo cambia vía `stock_movements`. Al cerrar una comanda se
     descuenta por receta; si sale de "cerrada" se devuelve. Un producto "tal cual" (gaseosa) = receta de
     1 unidad de su insumo.
-  - `close_cash_session(session, contado)` calcula el efectivo esperado (apertura + cobros en efectivo con
-    propina + ingresos − retiros).
+  - `close_cash_session(session, contado)` (security definer, owner/manager/cashier) calcula el efectivo esperado
+    (apertura + cobros en efectivo con propina + ingresos − retiros). Es la única forma de cerrar: las sesiones no
+    se editan directo (`cash_sessions_guard`, bandera `comanda.cash_close`; sin política de update).
+  - **Varias cajas:** `registers` (owner/manager; nombre único entre activas; no se desactiva una abierta). Cada
+    equipo elige su caja (`getDeviceRegister`/`deviceSessionId` en `lib/cash.ts`, en localStorage) y la manda en
+    los cobros (`payments.cash_session_id`, `p_session` en `customer_payment`/`supplier_payment`,
+    `paid.cash_session_id` en `register_purchase`). `private.pick_cash_session` decide: la pedida (abierta y del
+    local), la que abrió esa persona, la única abierta; con varias y efectivo, exige elegir; otros medios van a la
+    más antigua. Movimientos de caja solo en sesiones abiertas (`cash_movements_guard`).
+  - **Arqueo ciego** (`registers.blind_close`): el cajero no ve esperado ni diferencia (pantalla Caja y la
+    respuesta de `close_cash_session`); dueño y encargado sí. Es ocultamiento de interfaz: por RLS el cajero
+    igual puede leer pagos y sesiones.
   - Precio de ítems: el trigger `order_items_enrich` toma nombre, precio y estación del producto y
     reconstruye los modificadores desde sus ids (el cliente manda `modifiers: [{id}]`). El dispositivo no
     puede imponer precios. También valida mínimos/máximos de cada grupo del producto y que no se repita una
     opción; un grupo obligatorio con menos opciones activas que su mínimo exige solo las que hay (igual que
     `validateSelection` en el cliente).
   - Pagos (`payments_before_insert`): solo sobre comandas abiertas, nunca más de lo que falta, se
-    asocian a la caja abierta del local; el efectivo exige caja abierta.
+    asocian a una caja abierta (`pick_cash_session`); el efectivo exige caja abierta.
   - Descuentos (`orders.discount_amount`): solo owner/manager/cashier (chequeo en `orders_before_update`).
   - Al cerrar una comanda, los ítems pendientes pasan a `sent` (venta de mostrador cobrada antes).
   - `ingredients.stock_qty` está protegido (`ingredients_guard_stock`): solo lo cambia `apply_stock_movement`
@@ -143,7 +153,7 @@ Texto de interfaz: oraciones cortas, verbos concretos, sin disculpas en errores.
 Salón (mesas en vivo; mostaza = algo sin enviar o listo para servir) · Comandas (abiertas + venta de
 mostrador) · Comanda (carta + pedido, envío a cocina, cancelar, marcar entregado, cobrar con
 `components/PaySheet.tsx`) · Cocina (KDS oscuro, tickets por comanda/estación, semáforo 10/20 min, aviso
-sonoro con Web Audio) · Caja (apertura, ingresos/retiros, resumen por medio de pago, cierre con arqueo;
+sonoro con Web Audio) · Caja (selector de caja del equipo, apertura, ingresos/retiros, resumen por medio de pago, cierre con arqueo o arqueo ciego, "Administrar cajas";
 `lib/cash.ts` replica el cálculo de `close_cash_session`) · Carta y Modificadores (owner/manager; la ficha
 del producto incluye receta con costo y margen) · Stock (insumos, compra/merma/ajuste/conteo, historial,
 alertas de faltante) · Reportes (`components/BarChart.tsx`: una serie, un tono, tooltip y tabla) · Estado de resultados · Inicio
@@ -154,7 +164,7 @@ Salón, Comandas, Caja, Más; Cocina para ellos está en Más.
 ## Pendientes conocidos
 
 - Sin conexión no se puede cobrar (los pagos dependen de la caja abierta y del saldo en el servidor).
-- Caja: hoy se usa la primera caja activa del local; múltiples cajas y arqueo ciego quedan para más adelante.
+- Caja: el arqueo ciego oculta en la interfaz; para que sea estricto habría que restringir por RLS la lectura de pagos del cajero.
 - Impresión directa ESC/POS (sin el diálogo del navegador) y salida automática a la impresora de cocina al enviar.
 - Cantidades con decimales se escriben con coma (es-AR): `parseAmount` toma el punto como separador de miles.
 - Mercado Pago: hoy usa una sola cuenta (la de prueba de ALTech) para todos los locales. Para producción falta

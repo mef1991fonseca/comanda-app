@@ -9,7 +9,7 @@ Uso:  npm run build && npx vite preview --port 4173 &   y luego   python3 tests/
 import os
 import sys
 from playwright.sync_api import sync_playwright, expect
-from fake_supabase import FakeSupabase, EMAIL, PASSWORD
+from fake_supabase import FakeSupabase, EMAIL, PASSWORD, USER_ID
 
 BASE = "http://127.0.0.1:4173"
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "screenshots")
@@ -824,6 +824,72 @@ with sync_playwright() as p:
     page.get_by_role("button", name="Últimos 6 meses").click()
     shot(page, "s12-02-resultados-tablet")
     page.set_viewport_size({"width": 390, "height": 844})
+
+    # ---------- Varias cajas y arqueo ciego ----------
+    page.get_by_role("link", name="Caja").click()
+    expect(page.locator(".register-picker")).to_have_count(0)   # con una sola caja no hay selector
+    page.get_by_role("button", name="Administrar cajas").click()
+    cajas = page.get_by_role("dialog", name="Cajas del local")
+    cajas.get_by_label("Nueva caja").fill("barra ")
+    cajas.get_by_role("button", name="Agregar caja").click()
+    expect(cajas.get_by_label("Nombre", exact=False)).to_have_count(2)
+    cajas.get_by_label("Nueva caja").fill("Barra")
+    cajas.get_by_role("button", name="Agregar caja").click()
+    expect(cajas.get_by_role("alert")).to_contain_text("Ya hay una caja con ese nombre")
+    cajas.get_by_label("Arqueo ciego en barra").click()   # se guarda al tocar
+    expect(cajas.get_by_label("Arqueo ciego en barra")).to_be_checked()
+    cajas.get_by_role("button", name="Desactivar Caja principal").click()
+    expect(cajas.get_by_role("alert")).to_contain_text("Cerrá la caja antes de desactivarla")
+    shot(page, "s13-01-cajas")
+    cajas.get_by_role("button", name="Listo").click()
+
+    picker = page.get_by_role("group", name="Caja de este equipo")
+    expect(picker.get_by_role("button", name="Caja principal Abierta")).to_have_attribute("aria-pressed", "true")
+    picker.get_by_role("button", name="barra Cerrada").click()
+    page.get_by_label("Efectivo inicial").fill("5000")
+    page.get_by_role("button", name="Abrir barra").click()
+    expect(picker.get_by_role("button", name="barra Abierta")).to_have_attribute("aria-pressed", "true")
+    expect(page.locator(".cash-expected")).to_contain_text("$ 5.000")   # el dueño ve lo esperado
+
+    # venta de mostrador cobrada en efectivo desde este equipo: entra a la Barra
+    page.get_by_role("link", name="Comandas").click()
+    page.get_by_role("button", name="Venta de mostrador").click()
+    page.get_by_role("button", name="Para llevar").click()
+    page.get_by_label("Nombre del cliente").fill("Caja barra")
+    page.get_by_role("button", name="Empezar venta").click()
+    page.get_by_role("button", name="Bebidas").click()
+    page.get_by_role("button", name="Agua sin gas $ 2.000").click()
+    page.get_by_role("button", name="Ver pedido").click()
+    page.get_by_role("button", name="Cobrar · $ 2.000").click()
+    pay = page.get_by_role("dialog", name="Cobrar")
+    pay.get_by_role("radio", name="Efectivo").click()
+    pay.get_by_role("button", name="Registrar pago · $ 2.000").click()
+    pay.get_by_role("button", name="Cerrar sin factura").click()   # la facturación quedó activa en el bloque de ARCA
+    expect(page.get_by_role("dialog", name="Cobrar")).to_have_count(0)
+    barra = next(r for r in fake.db["registers"] if r["name"] == "barra")
+    barra_sess = next(x for x in fake.db["cash_sessions"] if x["register_id"] == barra["id"] and not x.get("closed_at"))
+    last_pay = fake.db["payments"][-1]
+    assert last_pay["cash_session_id"] == barra_sess["id"], last_pay
+
+    # como cajero, la Barra cierra a ciegas
+    me = next(m for m in fake.db["restaurant_members"] if m["user_id"] == USER_ID)
+    me["role"] = "cashier"
+    page.goto(BASE + "/caja")
+    expect(page.locator(".cash-expected")).to_contain_text("Arqueo ciego")
+    expect(page.locator(".cash-expected")).not_to_contain_text("debería haber")
+    shot(page, "s13-02-arqueo-ciego")
+    page.get_by_role("button", name="Cerrar caja").click()
+    page.get_by_label("Efectivo contado").fill("6000")
+    expect(page.get_by_role("dialog")).not_to_contain_text("Faltan")
+    expect(page.get_by_role("dialog")).not_to_contain_text("Sobran")
+    page.get_by_role("dialog").get_by_role("button", name="Cerrar caja").click()
+    expect(page.get_by_role("status")).to_contain_text("El encargado ve si hay diferencia")
+    expect(page.locator(".list-row").filter(has_text="Contado")).not_to_contain_text("Esperado")
+    shot(page, "s13-03-cierre-ciego")
+    me["role"] = "owner"
+    page.goto(BASE + "/caja")
+    page.get_by_role("group", name="Caja de este equipo").get_by_role("button", name="barra Cerrada").click()
+    expect(page.locator(".list-row").filter(has_text="Esperado")).to_be_visible()
 
     page.get_by_role("link", name="Más").click()
     page.get_by_role("button", name="Cerrar sesión").click()
