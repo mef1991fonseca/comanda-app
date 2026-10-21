@@ -144,7 +144,6 @@ export function Comanda() {
       onEdit={setEditingItem}
       onQuantity={(item, q) => void act(() => setItemQuantity(item, q, `${where}: ${item.name} × ${q}`))}
       onSend={sendToKitchen}
-      offline={!online}
       onPay={
         canSell && isOpen && items.some((i) => i.status !== 'cancelled')
           ? () => {
@@ -272,7 +271,7 @@ export function Comanda() {
         />
       )}
 
-      {paying && online && (
+      {paying && (
         <PaySheet
           order={order}
           payments={payments}
@@ -335,7 +334,6 @@ function Ticket({
   onQuantity,
   onSend,
   onPay,
-  offline,
 }: {
   pending: OrderItem[]
   sent: OrderItem[]
@@ -347,7 +345,6 @@ function Ticket({
   onQuantity: (i: OrderItem, q: number) => void
   onSend: () => void
   onPay?: () => void
-  offline: boolean
 }) {
   const sentTotal = sent.filter((i) => i.status !== 'cancelled').reduce((s, i) => s + (i.line_total ?? 0), 0)
   return (
@@ -413,14 +410,11 @@ function Ticket({
           {pending.length ? `Enviar a cocina · ${formatMoney(pendingTotal)}` : 'Nada por enviar'}
         </button>
       )}
-      {onPay &&
-        (offline ? (
-          <p className="hint muted">Para cobrar hace falta conexión. El pedido se sigue cargando y enviando igual.</p>
-        ) : (
-          <button className={`btn btn-block ${pending.length ? 'btn-quiet' : 'btn-primary'}`} onClick={onPay} disabled={busy}>
-            Cobrar · {formatMoney(total)}
-          </button>
-        ))}
+      {onPay && (
+        <button className={`btn btn-block ${pending.length ? 'btn-quiet' : 'btn-primary'}`} onClick={onPay} disabled={busy}>
+          Cobrar · {formatMoney(total)}
+        </button>
+      )}
     </div>
   )
 }

@@ -118,8 +118,14 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
     directo; si no, a la cola (`outbox`) con uuid del dispositivo. Se envía en orden al volver la red y
     cada 20 s; un 23505 (ya existía) cuenta como aplicado; un rechazo de negocio va a `outbox-failed` y
     `SyncBar` lo muestra con su motivo para descartarlo.
-  - Alcance sin red: abrir mesas y ventas de mostrador, cargar/cancelar/enviar ítems, estados de cocina.
-    Cobros, caja, stock y administración piden conexión. El número de comanda llega al sincronizar.
+  - Alcance sin red: abrir mesas y ventas de mostrador, cargar/cancelar/enviar ítems, estados de cocina,
+    cobrar en efectivo, tarjeta o transferencia (`OFFLINE_PAYMENT_KINDS`, helpers `addPayment`/`closeOrder` de
+    `lib/orders.ts`; el pago va con `reference` "Cobrado sin conexión" y la caja del equipo tomada de la caché
+    `cash:open:<local>`) y cerrar la comanda sin factura. Los deltas `paid` muestran lo cobrado mientras está
+    pendiente. Mercado Pago, cuenta corriente, descuentos, anular pagos, facturar, caja, stock y administración
+    piden conexión. El número de comanda llega al sincronizar. Un cobro rechazado al sincronizar (comanda ya
+    cerrada por otro equipo, monto de más, caja cerrada) queda en `outbox-failed` y `SyncBar` avisa que es plata
+    sin registrar.
   - Al cerrar sesión se borra la caché (`clearCache`), con confirmación si hay cambios pendientes.
 
 - **Hosting:** Cloudflare Pages conectado a GitHub (`main` publica solo). Build `npm run build`, salida `dist`,
@@ -163,7 +169,7 @@ Salón, Comandas, Caja, Más; Cocina para ellos está en Más.
 
 ## Pendientes conocidos
 
-- Sin conexión no se puede cobrar (los pagos dependen de la caja abierta y del saldo en el servidor).
+- Sin conexión no se cobra con Mercado Pago ni cuenta corriente, ni se factura; tampoco se puede facturar después una comanda ya cerrada.
 - Caja: el arqueo ciego oculta en la interfaz; para que sea estricto habría que restringir por RLS la lectura de pagos del cajero.
 - Impresión directa ESC/POS (sin el diálogo del navegador) y salida automática a la impresora de cocina al enviar.
 - Cantidades con decimales se escriben con coma (es-AR): `parseAmount` toma el punto como separador de miles.

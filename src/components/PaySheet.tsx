@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, errorMessage } from '../lib/supabase'
-import { parseAmount, type PaymentMethod, deviceSessionId } from '../lib/cash'
+import { parseAmount, type PaymentMethod, deviceSessionId, openCashSessions } from '../lib/cash'
+import { cachedQuery } from '../lib/offline'
+import { useSync } from '../lib/useSync'
 import { formatMoney } from '../lib/format'
-import type { Order, OrderItem, Payment } from '../lib/orders'
+import { addPayment as savePayment, closeOrder as saveClose, OFFLINE_PAYMENT_KINDS, type Order, type OrderItem, type Payment } from '../lib/orders'
 import type { Customer } from '../lib/customers'
 import type { Enums } from '../lib/database.types'
 import { Sheet } from './Sheet'
@@ -17,6 +19,8 @@ type Role = Enums<'member_role'>
  * Cobro de una comanda: descuento, uno o varios pagos (efectivo con vuelto, tarjeta,
  * transferencia, Mercado Pago), propina y cierre. Las reglas duras viven en la base:
  * no se cobra de más, el efectivo exige caja abierta y no se cierra sin estar paga.
+ * Sin conexión se puede cobrar en efectivo, tarjeta o transferencia y cerrar (sin factura):
+ * queda en la cola del dispositivo y el servidor lo valida al sincronizar.
  */
 export function PaySheet({
   order,
@@ -57,23 +61,29 @@ export function PaySheet({
   const [fiscalOn, setFiscalOn] = useState(false)
   const [invoicing, setInvoicing] = useState(false)
   const navigate = useNavigate()
+  const { online } = useSync()
 
   const canDiscount = ['owner', 'manager', 'cashier'].includes(role)
   const canVoid = ['owner', 'manager'].includes(role)
-  const canInvoice = fiscalOn && ['owner', 'manager', 'cashier'].includes(role)
+  const canInvoice = online && fiscalOn && ['owner', 'manager', 'cashier'].includes(role)
   const remaining = Math.max(order.total - order.paid_total, 0)
   const live = payments.filter((p) => !p.voided_at)
 
   useEffect(() => {
     async function load() {
+      const rid = order.restaurant_id
       const [m, s, f] = await Promise.all([
-        supabase.from('payment_methods').select('*').eq('restaurant_id', order.restaurant_id).eq('active', true).order('sort_order'),
-        supabase.from('cash_sessions').select('id').eq('restaurant_id', order.restaurant_id).is('closed_at', null).limit(1),
-        supabase.from('fiscal_settings').select('enabled').eq('restaurant_id', order.restaurant_id).maybeSingle(),
+        cachedQuery<PaymentMethod>(`methods:${rid}`, 'payment_methods', [], () =>
+          supabase.from('payment_methods').select('*').eq('restaurant_id', rid).eq('active', true).order('sort_order'),
+        ),
+        openCashSessions(rid),
+        cachedQuery<{ restaurant_id: string; enabled: boolean }>(`fiscal:${rid}`, 'fiscal_settings', [], () =>
+          supabase.from('fiscal_settings').select('restaurant_id, enabled').eq('restaurant_id', rid),
+        ),
       ])
-      setFiscalOn(Boolean(f.data?.enabled))
-      const list = m.data ?? []
-      const open = (s.data ?? []).length > 0
+      setFiscalOn(Boolean(f.data[0]?.enabled))
+      const list = m.data
+      const open = s.length > 0
       setMethods(list)
       setCashOpen(open)
       setMethodId((cur) => cur ?? (list.find((x) => x.kind === (open ? 'cash' : 'debit')) ?? list[0])?.id ?? null)
@@ -136,15 +146,18 @@ export function PaySheet({
     if (amountValue > remaining + 0.009) return setError(`El monto supera lo que falta cobrar (${formatMoney(remaining)}).`)
     if (!Number.isFinite(tipValue) || tipValue < 0) return setError('La propina no es válida.')
     if (change !== null && change < 0) return setError('Lo recibido no alcanza para el monto y la propina.')
+    if (!online && !OFFLINE_PAYMENT_KINDS.includes(method.kind)) return setError(`Sin conexión no se puede cobrar con ${method.name}.`)
+    const where = order.number ? ` · comanda #${order.number}` : ''
     const ok = await run(() =>
-      deviceSessionId(order.restaurant_id).then((cash_session_id) =>
-        supabase.from('payments').insert({
-          restaurant_id: order.restaurant_id,
-          order_id: order.id,
-          payment_method_id: method.id,
+      deviceSessionId(order.restaurant_id).then((cashSessionId) =>
+        savePayment({
+          restaurantId: order.restaurant_id,
+          orderId: order.id,
+          methodId: method.id,
           amount: amountValue,
           tip: tipValue,
-          ...(cash_session_id ? { cash_session_id } : {}),
+          cashSessionId,
+          label: `Cobro en ${method.name} de ${formatMoney(amountValue)}${where}`,
         }),
       ),
     )
@@ -172,7 +185,8 @@ export function PaySheet({
   }
 
   async function closeOrder(withInvoice: boolean) {
-    if (await run(() => supabase.from('orders').update({ status: 'closed' }).eq('id', order.id))) {
+    const where = order.number ? ` #${order.number}` : ''
+    if (await run(() => saveClose(order.id, `Cerrar la comanda${where}`))) {
       if (withInvoice) setInvoicing(true)
       else onClosedOrder()
     }
@@ -215,7 +229,7 @@ export function PaySheet({
               <span>
                 {methods.find((m) => m.id === p.payment_method_id)?.name ?? 'Pago'}
                 {p.tip > 0 && <span className="muted"> · propina {formatMoney(p.tip)}</span>}
-                {canVoid && (
+                {canVoid && online && (
                   <button className="link-btn inline" onClick={() => void voidPayment(p)} disabled={busy}>
                     Anular
                   </button>
@@ -230,7 +244,7 @@ export function PaySheet({
           </div>
         </div>
 
-        {canDiscount && order.paid_total === 0 && (
+        {canDiscount && online && order.paid_total === 0 && (
           <div className="discount-row">
             <div className="field">
               <label htmlFor="disc">Descuento {discountPct ? '(%)' : '($)'}</label>
@@ -248,6 +262,12 @@ export function PaySheet({
 
         {remaining > 0 ? (
           <>
+            {!online && (
+              <div className="notice notice-warn">
+                Sin conexión: se puede cobrar en efectivo, tarjeta o transferencia. Queda guardado en este equipo y se registra
+                al volver la red.
+              </div>
+            )}
             {cashOpen === false && (
               <div className="notice notice-info">La caja está cerrada: para cobrar en efectivo, abrila desde Caja.</div>
             )}
@@ -256,7 +276,10 @@ export function PaySheet({
             )}
             <div className="method-chips" role="radiogroup" aria-label="Medio de pago">
               {methods.map((m) => {
-                const disabled = (m.kind === 'cash' && cashOpen === false) || (m.kind === 'account' && !customer)
+                const disabled =
+                  (m.kind === 'cash' && cashOpen === false) ||
+                  (m.kind === 'account' && !customer) ||
+                  (!online && !OFFLINE_PAYMENT_KINDS.includes(m.kind))
                 return (
                   <button
                     key={m.id}
@@ -342,11 +365,14 @@ export function PaySheet({
             )}
           </>
         ) : (
-          pendingItems > 0 && (
+          <>
+          {!online && fiscalOn && <p className="muted">Sin conexión se cierra sin factura.</p>}
+          {pendingItems > 0 && (
             <p className="muted">
               Al cerrar, {pendingItems === 1 ? 'el producto sin enviar va' : `los ${pendingItems} productos sin enviar van`} a cocina.
             </p>
-          )
+          )}
+          </>
         )}
 
         {error && <div className="notice notice-error" role="alert">{error}</div>}

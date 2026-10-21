@@ -195,6 +195,56 @@ export function setItemsStatus(ids: string[], status: ItemStatus, label: string)
 }
 
 // ---------------------------------------------------------------------------
+// Cobros: funcionan sin conexión para efectivo, tarjeta y transferencia. El servidor valida todo al
+// sincronizar (comanda abierta, no cobrar de más, caja abierta); si rechaza, queda en "no guardados".
+// ---------------------------------------------------------------------------
+
+/** Medios que se pueden cobrar sin conexión (Mercado Pago necesita la red y la cuenta corriente, el saldo). */
+export const OFFLINE_PAYMENT_KINDS: Enums<'payment_kind'>[] = ['cash', 'debit', 'credit', 'transfer', 'other']
+
+export function addPayment(input: {
+  restaurantId: string
+  orderId: string
+  methodId: string
+  amount: number
+  tip: number
+  cashSessionId?: string
+  label: string
+}) {
+  const offline = typeof navigator !== 'undefined' && !navigator.onLine
+  const row = {
+    id: crypto.randomUUID(),
+    restaurant_id: input.restaurantId,
+    order_id: input.orderId,
+    payment_method_id: input.methodId,
+    amount: input.amount,
+    tip: input.tip,
+    ...(input.cashSessionId ? { cash_session_id: input.cashSessionId } : {}),
+    ...(offline ? { reference: 'Cobrado sin conexión' } : {}),
+  }
+  const view = { voided_at: null, voided_by: null, created_at: nowIso(), updated_at: nowIso(), cash_session_id: input.cashSessionId ?? null }
+  return write({
+    table: 'payments',
+    kind: 'insert',
+    row,
+    view,
+    deltas: [{ order_id: input.orderId, paid: input.amount }],
+    label: input.label,
+  })
+}
+
+export function closeOrder(orderId: string, label: string) {
+  return write({
+    table: 'orders',
+    kind: 'update',
+    match: { id: orderId },
+    patch: { status: 'closed' },
+    view: { closed_at: nowIso(), updated_at: nowIso() },
+    label,
+  })
+}
+
+// ---------------------------------------------------------------------------
 // Lectura de una comanda (con caché y en tiempo real)
 // ---------------------------------------------------------------------------
 

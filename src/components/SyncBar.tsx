@@ -17,7 +17,7 @@ export function SyncBar() {
     <>
       {!online ? (
         <div className="sync-bar offline" role="status">
-          Sin conexión. Podés seguir tomando pedidos
+          Sin conexión. Podés seguir tomando pedidos y cobrando
           {pending > 0 ? `: ${pending} ${pending === 1 ? 'cambio guardado' : 'cambios guardados'} en este dispositivo.` : '.'}
         </div>
       ) : pending > 0 ? (
@@ -28,7 +28,9 @@ export function SyncBar() {
 
       {failed.length > 0 && (
         <button className="sync-bar failed" onClick={() => setOpen(true)}>
-          {failed.length === 1 ? '1 cambio no se pudo guardar' : `${failed.length} cambios no se pudieron guardar`}. Ver detalle
+          {failed.some((f) => f.table === 'payments')
+            ? 'Hay cobros hechos sin conexión que no se registraron. Ver detalle'
+            : `${failed.length === 1 ? '1 cambio no se pudo guardar' : `${failed.length} cambios no se pudieron guardar`}. Ver detalle`}
         </button>
       )}
 
@@ -37,6 +39,12 @@ export function SyncBar() {
           <p className="muted">
             Se hicieron sin conexión y, al sincronizar, el sistema no los aceptó. Revisá la comanda y volvé a cargarlos si hace falta.
           </p>
+          {failed.some((f) => f.table === 'payments') && (
+            <div className="notice notice-error">
+              Un cobro no registrado es plata que ya entró pero no figura en la caja. Cargalo de nuevo en la comanda o como
+              ingreso de caja antes de descartarlo.
+            </div>
+          )}
           <div className="list">
             {failed.map((f) => (
               <div key={f.id} className="list-row">

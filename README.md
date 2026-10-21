@@ -23,6 +23,7 @@ Nombre provisorio.
 | 13 | Costo histórico de lo vendido | Listo |
 | 14 | Mínimos y máximos de modificadores en el servidor | Listo |
 | 15 | Varias cajas y arqueo ciego | Listo |
+| 16 | Cobrar sin conexión (efectivo, tarjeta, transferencia) | Listo |
 
 ## Correr el proyecto
 

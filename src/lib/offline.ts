@@ -1,6 +1,8 @@
 /**
  * Modo sin conexión.
  *
+ * Alcance: comandas, ítems, cocina y cobros en efectivo, tarjeta o transferencia (con su cierre).
+ *
  * Lecturas: cada consulta guarda su resultado en IndexedDB. Sin red se devuelve la última copia,
  * con los cambios pendientes superpuestos para que la pantalla muestre lo que el usuario hizo.
  *
@@ -22,7 +24,8 @@ export type Filter =
   | { col: string; op: 'isNull' }
   | { col: string; op: 'gte'; value: string }
 
-export type Delta = { order_id: string; amount: number }
+/** Variación de una comanda mientras el cambio está pendiente: subtotal (ítems) o lo cobrado (pagos). */
+export type Delta = { order_id: string; amount?: number; paid?: number }
 
 export type Op = {
   id: string
@@ -37,7 +40,7 @@ export type Op = {
   match?: Match
   /** campos que solo se usan para mostrar mientras está pendiente (p. ej. line_total) */
   view?: Row
-  /** variación del subtotal de comandas que provoca este cambio (para mostrar totales sin red) */
+  /** variación de subtotal o de lo cobrado que provoca este cambio (para mostrar totales sin red) */
   deltas?: Delta[]
   /** texto para la persona: "Agregar Milanesa a Mesa 3" */
   label: string
@@ -155,8 +158,13 @@ export function overlay<T extends Row>(table: string, filters: Filter[], rows: T
       for (const d of op.deltas) {
         out = out.map((r) => {
           if (r.id !== d.order_id) return r
-          const subtotal = Number(r.subtotal ?? 0) + d.amount
-          return { ...r, subtotal, total: Math.max(subtotal - Number(r.discount_amount ?? 0), 0) }
+          const subtotal = Number(r.subtotal ?? 0) + (d.amount ?? 0)
+          return {
+            ...r,
+            subtotal,
+            total: Math.max(subtotal - Number(r.discount_amount ?? 0), 0),
+            paid_total: Number(r.paid_total ?? 0) + (d.paid ?? 0),
+          }
         })
       }
     }

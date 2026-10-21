@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase, errorMessage } from './supabase'
+import { cachedQuery } from './offline'
 import type { Tables } from './database.types'
 
 export type CashSession = Tables<'cash_sessions'>
@@ -76,6 +77,20 @@ export function setDeviceRegister(restaurantId: string, registerId: string) {
 }
 
 /**
+ * Cajas abiertas del local. Con red consulta y guarda; sin red devuelve lo último guardado
+ * (para poder cobrar en efectivo sin conexión con la caja que estaba abierta).
+ */
+export async function openCashSessions(restaurantId: string): Promise<{ id: string; register_id: string }[]> {
+  const res = await cachedQuery<{ id: string; register_id: string }>(
+    `cash:open:${restaurantId}`,
+    'cash_sessions',
+    [],
+    () => supabase.from('cash_sessions').select('id, register_id').eq('restaurant_id', restaurantId).is('closed_at', null),
+  )
+  return res.data
+}
+
+/**
  * Sesión abierta de la caja de este equipo, para mandarla con los cobros.
  * Si este equipo no eligió caja o la suya está cerrada, devuelve undefined y el servidor decide
  * (la caja que abrió esa persona, o la única abierta).
@@ -83,14 +98,8 @@ export function setDeviceRegister(restaurantId: string, registerId: string) {
 export async function deviceSessionId(restaurantId: string): Promise<string | undefined> {
   const registerId = getDeviceRegister(restaurantId)
   if (!registerId) return undefined
-  const { data } = await supabase
-    .from('cash_sessions')
-    .select('id')
-    .eq('restaurant_id', restaurantId)
-    .eq('register_id', registerId)
-    .is('closed_at', null)
-    .maybeSingle()
-  return data?.id ?? undefined
+  const open = await openCashSessions(restaurantId)
+  return open.find((s) => s.register_id === registerId)?.id
 }
 
 /** El cajero no ve lo esperado en una caja con arqueo ciego (dueño y encargado sí). */

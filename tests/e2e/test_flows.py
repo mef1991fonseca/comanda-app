@@ -403,7 +403,7 @@ with sync_playwright() as p:
     page.get_by_role("button", name="Enviar a cocina · $ 14.500").click()
     expect(page.locator(".order-bar")).to_contain_text("2 enviados")
     page.get_by_role("button", name="Ver pedido").click()
-    expect(page.get_by_role("dialog", name="Pedido").get_by_text("Para cobrar hace falta conexión")).to_be_visible()
+    expect(page.get_by_role("dialog", name="Pedido").get_by_role("button", name="Cobrar · $ 14.500")).to_be_visible()   # sin red también se cobra
     shot(page, "s4-01-pedido-sin-conexion")
     page.get_by_role("button", name="Seguir cargando").click()
     page.get_by_role("link", name="Volver").click()
@@ -449,6 +449,46 @@ with sync_playwright() as p:
     shot(page, "s4-03-conflicto")
     page.get_by_role("button", name="Descartar todos").click()
     expect(page.locator(".sync-bar")).to_have_count(0)
+
+    # cobrar sin conexión: venta de mostrador cobrada en efectivo y cerrada sin red
+    page.get_by_role("link", name="Comandas").click()
+    ctx.set_offline(True)
+    page.get_by_role("button", name="Venta de mostrador").click()
+    page.get_by_role("button", name="Para llevar").click()
+    page.get_by_label("Nombre del cliente").fill("Sin red")
+    page.get_by_role("button", name="Empezar venta").click()
+    page.get_by_role("button", name="Bebidas").click()
+    page.get_by_role("button", name="Agua sin gas $ 2.000").click()
+    page.get_by_role("button", name="Agua sin gas $ 2.000").click()
+    page.get_by_role("button", name="Ver pedido").click()
+    page.get_by_role("button", name="Cobrar · $ 4.000").click()
+    pay = page.get_by_role("dialog", name="Cobrar")
+    expect(pay).to_contain_text("Sin conexión: se puede cobrar en efectivo, tarjeta o transferencia")
+    expect(pay.get_by_role("radio", name="Mercado Pago")).to_be_disabled()
+    expect(pay.get_by_label("Descuento ($)")).to_have_count(0)
+    pay.get_by_role("radio", name="Efectivo").click()
+    pay.get_by_label("Monto").fill("3000")
+    pay.get_by_label("Paga con").fill("5000")
+    expect(pay.locator(".change-line")).to_contain_text("$ 2.000")
+    pay.get_by_role("button", name="Registrar pago · $ 3.000").click()
+    expect(pay.locator(".ticket-total")).to_contain_text("Falta cobrar")
+    expect(pay.locator(".ticket-total")).to_contain_text("$ 1.000")
+    pay.get_by_role("radio", name="Débito").click()
+    pay.get_by_role("button", name="Registrar pago · $ 1.000").click()
+    expect(pay.locator(".ticket-total")).to_contain_text("Pagado")
+    shot(page, "s14-01-cobro-sin-conexion")
+    pay.get_by_role("button", name="Cerrar comanda").click()
+    expect(page.get_by_role("heading", name="Comandas", exact=True)).to_be_visible()
+    expect(page.locator(".sync-bar.offline")).to_contain_text("tomando pedidos y cobrando")
+    assert not any(o.get("customer_name") == "Sin red" for o in fake.db["orders"]), "no debería haber llegado al servidor"
+
+    ctx.set_offline(False)
+    expect(page.locator(".sync-bar")).to_have_count(0, timeout=15000)
+    sinred = next(o for o in fake.db["orders"] if o.get("customer_name") == "Sin red")
+    assert sinred["status"] == "closed" and sinred["paid_total"] == 4000, sinred
+    pays = [p for p in fake.db["payments"] if p["order_id"] == sinred["id"]]
+    assert sorted(p["amount"] for p in pays) == [1000, 3000] and all(p["cash_session_id"] for p in pays), pays
+    assert all(p["reference"] == "Cobrado sin conexión" for p in pays), pays
 
     # ---------- Equipo: invitar, cambiar rol, dar de baja ----------
     import uuid as _uuid
@@ -814,7 +854,7 @@ with sync_playwright() as p:
     # ---------- Estado de resultados ----------
     page.get_by_role("link", name="Más").click()
     page.get_by_role("button", name="Estado de resultados Ventas menos costo y gastos, mes a mes").click()
-    expect(page.locator(".pnl-result")).to_contain_text("$ 82.600")   # 101.500 de ventas − 18.900 de costo guardado al cerrar, sin gastos
+    expect(page.locator(".pnl-result")).to_contain_text("$ 86.600")   # 105.500 de ventas − 18.900 de costo guardado al cerrar, sin gastos
     expect(page.locator(".notice-warn")).to_contain_text("sin receta")
     expect(page.locator(".report-table tbody tr")).to_have_count(6)
     shot(page, "s12-01-resultados")
