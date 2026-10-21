@@ -8,7 +8,7 @@ export type SalesReport = {
   by_day: { day: string; sales: number; orders: number }[]
   by_payment: { method: string; kind: Enums<'payment_kind'>; amount: number; tips: number; count: number }[]
   by_type: { type: Enums<'order_type'>; sales: number; orders: number }[]
-  products: { product_id: string | null; name: string; qty: number; revenue: number; cost: number; has_recipe: boolean }[]
+  products: { product_id: string | null; name: string; qty: number; revenue: number; cost: number; costed_revenue: number | null; has_recipe: boolean }[]
 }
 
 export type RangeKey = 'today' | 'yesterday' | 'week' | 'month'

@@ -219,6 +219,13 @@ class FakeSupabase:
             self.db["stock_movements"].append(mv)
         return delta
 
+    def _recipe_costs(self):
+        ing_cost = {i["id"]: i["cost_per_unit"] for i in self.db["ingredients"]}
+        out = {}
+        for r in self.db["recipe_items"]:
+            out[r["product_id"]] = out.get(r["product_id"], 0) + r["quantity"] * ing_cost.get(r["ingredient_id"], 0)
+        return out
+
     def _sales_report(self, args):
         parse = lambda x: datetime.fromisoformat(x.replace("Z", "+00:00"))
         lo, hi = parse(args["p_from"]), parse(args["p_to"])
@@ -245,7 +252,9 @@ class FakeSupabase:
         for (pid, name), rows in group(items, lambda i: (i.get("product_id"), i["name"])).items():
             qty = sum(r["quantity"] for r in rows)
             products.append({"product_id": pid, "name": name, "qty": qty, "revenue": sum(r["line_total"] for r in rows),
-                             "cost": round(qty * unit_cost.get(pid, 0), 2), "has_recipe": pid in unit_cost})
+                             "cost": round(sum(r["quantity"] * (r.get("unit_cost") or 0) for r in rows), 2),
+                             "costed_revenue": sum(r["line_total"] for r in rows if r.get("unit_cost") is not None) or None,
+                             "has_recipe": any(r.get("unit_cost") is not None for r in rows)})
         return {
             "totals": {"orders": len(orders), "sales": sum(o["total"] for o in orders), "subtotal": sum(o["subtotal"] for o in orders),
                        "discounts": sum(o["discount_amount"] for o in orders), "tips": sum(p["tip"] for p in pays)},
@@ -291,8 +300,8 @@ class FakeSupabase:
                 "month": key, "orders": len(orders), "sales": sum(o["total"] for o in orders),
                 "discounts": sum(o["discount_amount"] for o in orders),
                 "tips": sum(p["tip"] for p in self.db["payments"] if p["order_id"] in ids and not p.get("voided_at")),
-                "cogs": round(sum(i["quantity"] * unit_cost.get(i.get("product_id"), 0) for i in items), 2),
-                "sales_without_recipe": sum(i["line_total"] for i in items if i.get("product_id") not in unit_cost),
+                "cogs": round(sum(i["quantity"] * (i.get("unit_cost") or 0) for i in items), 2),
+                "sales_without_recipe": sum(i["line_total"] for i in items if i.get("unit_cost") is None),
                 "inventory_purchases": sum(p["total"] for p in pu if p["category"] in ("mercaderia", "bebidas")),
                 "expenses": exp,
             })
@@ -389,6 +398,10 @@ class FakeSupabase:
                     raise BusinessError("La comanda no está paga")
                 row["closed_at"] = now_iso()
                 self._stock_for_order(row, -1)
+                costs = self._recipe_costs()
+                for i in self.db["order_items"]:
+                    if i["order_id"] == row["id"]:
+                        i["unit_cost"] = costs.get(i.get("product_id"))
                 for i in self.db["order_items"]:
                     if i["order_id"] == row["id"] and i["status"] == "pending":
                         i["status"], i["sent_at"] = "sent", now_iso()

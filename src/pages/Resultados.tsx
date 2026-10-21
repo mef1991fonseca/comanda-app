@@ -199,7 +199,7 @@ function Statement({ month: m }: { month: IncomeMonth }) {
           Compras de mercadería y bebidas: {formatMoney(m.inventory_purchases)}. Van al stock y se cuentan como costo cuando se venden.
           {m.tips > 0 && ` Propinas: ${formatMoney(m.tips)} (del personal, no suman a las ventas).`}
         </p>
-        <p className="hint muted">El costo usa el costo actual de los insumos. Es una referencia de gestión, no un balance contable.</p>
+        <p className="hint muted">El costo de lo vendido se guarda al cerrar cada comanda, con el precio de los insumos de ese momento. Es una referencia de gestión, no un balance contable.</p>
       </div>
     </section>
   )

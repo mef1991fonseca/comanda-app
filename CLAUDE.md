@@ -32,7 +32,10 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
     (bandera `comanda.stock_write`); al crear un insumo arranca en 0 y el inicial se carga como movimiento
     `adjustment` "Stock inicial". Conteo con RPC `stock_count(insumo, contado)`.
   - Reportes: RPC `sales_report(local, desde, hasta)` (solo owner/manager) devuelve totales, por hora/día en
-    la zona del local, medios de pago, canales y productos con costo según receta y costo actual.
+    la zona del local, medios de pago, canales y productos con costo.
+  - Costo histórico: al cerrar una comanda, `orders_capture_cost` → `private.capture_item_costs` guarda en
+    `order_items.unit_cost` el costo por unidad (receta × costo del insumo en ese momento; null = sin receta).
+    Solo lo escribe el servidor (bandera `comanda.cost_write`); reportes y estado de resultados usan ese valor.
 - **Pagos se anulan** con `voided_at`, nunca se borran.
 - **Roles:** owner, manager, cashier, waiter, kitchen. Matriz en `supabase/migrations/20261019120300_rls_and_rpc.sql`.
   Helpers de RLS en schema `private` (`private.is_member`, `private.has_role`), fuera de la API.
@@ -86,7 +89,7 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
   de costos ni stock). Ruta pública `/m/:slug?mesa=N` (`pages/PublicMenu.tsx`), que `App` atiende antes del login.
   Pantallas: Más → Carta QR (`/carta/qr`) e `/imprimir/qr` (un QR por mesa + uno general).
 - **Estado de resultados:** RPC `income_statement(local, meses)` (owner/manager, security invoker, meses en la zona del
-  local): ventas de comandas cerradas, costo de lo vendido por receta con costo actual, gastos por categoría (compras
+  local): ventas de comandas cerradas, costo de lo vendido con el costo guardado al cerrar, gastos por categoría (compras
   no anuladas por fecha del comprobante, sin mercadería ni bebidas porque van a stock y ya entran como costo),
   compras de mercadería y propinas informativas, y ventas sin receta. Resultado = ventas − costo − gastos, se calcula
   en el cliente. Pantalla `pages/Resultados.tsx` (Más → Estado de resultados).
@@ -152,7 +155,6 @@ Salón, Comandas, Caja, Más; Cocina para ellos está en Más.
 - Validar mínimos/máximos de modificadores también en el servidor.
 - Caja: hoy se usa la primera caja activa del local; múltiples cajas y arqueo ciego quedan para más adelante.
 - Impresión directa ESC/POS (sin el diálogo del navegador) y salida automática a la impresora de cocina al enviar.
-- El costo en reportes usa el costo actual de los insumos, no el histórico al momento de la venta.
 - Cantidades con decimales se escriben con coma (es-AR): `parseAmount` toma el punto como separador de miles.
 - Mercado Pago: hoy usa una sola cuenta (la de prueba de ALTech) para todos los locales. Para producción falta
   OAuth para que cada local vincule su cuenta, y cargar la dirección real del local en la sucursal de MP.

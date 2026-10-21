@@ -58,7 +58,7 @@ export type Database = {
         Relationships: []
       }
       order_items: {
-        Row: { created_at: Ts; created_by: string | null; guest_number: number | null; id: string; line_total: number | null; modifiers: Json; modifiers_total: number; name: string; notes: string | null; order_id: string; product_id: string | null; quantity: number; ready_at: Ts | null; restaurant_id: string; sent_at: Ts | null; station_id: string | null; status: Database['public']['Enums']['item_status']; unit_price: number; updated_at: Ts }
+        Row: { created_at: Ts; created_by: string | null; guest_number: number | null; id: string; line_total: number | null; modifiers: Json; modifiers_total: number; name: string; notes: string | null; order_id: string; product_id: string | null; quantity: number; ready_at: Ts | null; restaurant_id: string; sent_at: Ts | null; station_id: string | null; status: Database['public']['Enums']['item_status']; unit_cost: number | null; unit_price: number; updated_at: Ts }
         Insert: { created_at?: Ts; created_by?: string | null; guest_number?: number | null; id?: string; modifiers?: Json; modifiers_total?: number; name: string; notes?: string | null; order_id: string; product_id?: string | null; quantity?: number; ready_at?: Ts | null; restaurant_id: string; sent_at?: Ts | null; station_id?: string | null; status?: Database['public']['Enums']['item_status']; unit_price: number; updated_at?: Ts }
         Update: Partial<Database['public']['Tables']['order_items']['Insert']>
         Relationships: []

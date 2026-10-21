@@ -20,6 +20,7 @@ Nombre provisorio.
 | 10 | Proveedores, compras y gastos con cuenta corriente | Listo |
 | 11 | Carta QR pública | Listo |
 | 12 | Estado de resultados mensual | Listo |
+| 13 | Costo histórico de lo vendido | Listo |
 
 ## Correr el proyecto
 

@@ -814,7 +814,7 @@ with sync_playwright() as p:
     # ---------- Estado de resultados ----------
     page.get_by_role("link", name="Más").click()
     page.get_by_role("button", name="Estado de resultados Ventas menos costo y gastos, mes a mes").click()
-    expect(page.locator(".pnl-result")).to_contain_text("$ 77.500")   # 101.500 de ventas − 24.000 de costo, sin gastos en el mes
+    expect(page.locator(".pnl-result")).to_contain_text("$ 82.600")   # 101.500 de ventas − 18.900 de costo guardado al cerrar, sin gastos
     expect(page.locator(".notice-warn")).to_contain_text("sin receta")
     expect(page.locator(".report-table tbody tr")).to_have_count(6)
     shot(page, "s12-01-resultados")

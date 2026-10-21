@@ -103,7 +103,7 @@ function ReportBody({ report, rangeKey }: { report: SalesReport; rangeKey: Range
 
   const withRecipe = report.products.filter((p) => p.has_recipe)
   const costTotal = withRecipe.reduce((s, p) => s + p.cost, 0)
-  const revenueWithRecipe = withRecipe.reduce((s, p) => s + p.revenue, 0)
+  const revenueWithRecipe = withRecipe.reduce((s, p) => s + (p.costed_revenue ?? 0), 0)
 
   return (
     <>
@@ -147,7 +147,7 @@ function ReportBody({ report, rangeKey }: { report: SalesReport; rangeKey: Range
         {withRecipe.length > 0 && (
           <p className="muted">
             Costo de lo vendido con receta: {formatMoney(costTotal)} sobre {formatMoney(revenueWithRecipe)} (
-            {revenueWithRecipe ? Math.round((costTotal / revenueWithRecipe) * 100) : 0}% de costo de mercadería). Se calcula con el costo actual de los insumos.
+            {revenueWithRecipe ? Math.round((costTotal / revenueWithRecipe) * 100) : 0}% de costo de mercadería). Se calcula con el costo de los insumos al momento de cada venta.
           </p>
         )}
         <div className="table-wrap">
@@ -162,7 +162,8 @@ function ReportBody({ report, rangeKey }: { report: SalesReport; rangeKey: Range
             </thead>
             <tbody>
               {report.products.map((p) => {
-                const margin = p.has_recipe && p.revenue > 0 ? Math.round(((p.revenue - p.cost) / p.revenue) * 100) : null
+                const costed = p.costed_revenue ?? 0
+                const margin = p.has_recipe && costed > 0 ? Math.round(((costed - p.cost) / costed) * 100) : null
                 return (
                   <tr key={`${p.product_id ?? ''}-${p.name}`}>
                     <th scope="row">{p.name}</th>
