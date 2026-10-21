@@ -39,7 +39,7 @@ export function Imprimir() {
   const when = new Date().toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
 
   return (
-    <div className="print-page">
+    <div className="print-page receipt-page">
       <div className="print-actions no-print">
         <button className="btn btn-quiet" onClick={() => navigate(-1)}>Volver</button>
         <button className="btn btn-primary" onClick={() => window.print()}>Imprimir</button>

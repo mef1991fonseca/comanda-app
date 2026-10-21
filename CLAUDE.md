@@ -81,8 +81,12 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
   el momento), `supplier_payment` (owner/manager/cashier; efectivo sale de la caja abierta como retiro) y
   `cancel_purchase` (devuelve stock y deuda; el costo del insumo no vuelve atrás). Pantallas: Más → Compras y
   gastos (`/compras`, `/compras/nueva`, `/proveedores/:id`).
+- **Carta QR:** `restaurants.menu_slug/menu_public/menu_note`; RPC `set_public_menu` (owner/manager) y
+  `public_menu(slug)` (única puerta para `anon`: nombre, descripción, precio y opciones de productos activos; nada
+  de costos ni stock). Ruta pública `/m/:slug?mesa=N` (`pages/PublicMenu.tsx`), que `App` atiende antes del login.
+  Pantallas: Más → Carta QR (`/carta/qr`) e `/imprimir/qr` (un QR por mesa + uno general).
 - **Impresión:** `/imprimir/precuenta/:id` y `/imprimir/cocina/:id` (`pages/Imprimir.tsx`), tickets de 80 mm con
-  la impresión del navegador (`@page size: 80mm`). Sirve con cualquier impresora instalada en el equipo; la
+  la impresión del navegador (página con nombre `@page receipt`, clase `.receipt-page`; el resto imprime en A4). Sirve con cualquier impresora instalada en el equipo; la
   impresión directa ESC/POS sin diálogo sigue pendiente.
 - **Alta de local:** RPC `create_restaurant(nombre, mesas)` crea el local con dueño, estaciones Cocina/Barra,
   Caja principal, medios de pago y un salón con N mesas.

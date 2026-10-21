@@ -79,6 +79,10 @@ export function Mas() {
                 <span>Compras y gastos</span>
                 <span className="muted">Proveedores, facturas y pagos</span>
               </button>
+              <button className="list-row" onClick={() => navigate('/carta/qr')}>
+                <span>Carta QR</span>
+                <span className="muted">La carta en el celular del cliente</span>
+              </button>
               <button className="list-row" onClick={() => navigate('/stock')}>
                 <span>Stock</span>
                 <span className="muted">Insumos, compras, mermas y conteos</span>

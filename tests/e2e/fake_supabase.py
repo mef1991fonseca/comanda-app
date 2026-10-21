@@ -499,7 +499,8 @@ class FakeSupabase:
         self.db["restaurants"].append({"id": rid, "name": args["p_name"].strip(), "currency": "ARS",
                                        "timezone": "America/Argentina/Buenos_Aires", "created_at": now_iso(),
                                        "updated_at": now_iso(), "legal_name": None, "cuit": None, "address": None,
-                                       "phone": None, "created_by": USER_ID})
+                                       "phone": None, "created_by": USER_ID,
+                                       "menu_slug": None, "menu_public": False, "menu_note": None})
         self.db["restaurant_members"].append({"restaurant_id": rid, "user_id": USER_ID, "role": "owner",
                                               "display_name": None, "active": True})
         for i, name in enumerate(["Cocina", "Barra"]):
@@ -555,6 +556,36 @@ class FakeSupabase:
 
         if path == "/rest/v1/rpc/create_restaurant":
             return reply(200, self._create_restaurant(json.loads(req.post_data or "{}")))
+        if path == "/rest/v1/rpc/set_public_menu":
+            a = json.loads(req.post_data or "{}")
+            r = self._find("restaurants", a["p_restaurant"])
+            slug = a["p_slug"].strip().lower()
+            import re as _re
+            if not _re.match(r"^[a-z0-9]([a-z0-9-]{1,38}[a-z0-9])$", slug):
+                return reply(400, {"code": "P0001", "message": "La dirección va en minúsculas, sin espacios ni tildes"})
+            r.update({"menu_slug": slug, "menu_public": a["p_public"], "menu_note": (a.get("p_note") or "").strip() or None})
+            return reply(200, slug)
+        if path == "/rest/v1/rpc/public_menu":
+            a = json.loads(req.post_data or "{}")
+            r = next((x for x in self.db["restaurants"] if x.get("menu_slug") == a["p_slug"].lower() and x.get("menu_public")), None)
+            if not r:
+                return reply(200, None)
+            prods = [p for p in self.db["products"] if p["restaurant_id"] == r["id"] and p["active"]]
+            def options(pid):
+                out = []
+                for l in self.db["product_modifier_groups"]:
+                    if l["product_id"] == pid:
+                        g = self._find("modifier_groups", l["group_id"])
+                        out.append({"group": g["name"], "choices": [{"name": m["name"], "price_delta": m["price_delta"]}
+                                    for m in self.db["modifiers"] if m["group_id"] == g["id"] and m["active"]]})
+                return out
+            return reply(200, {
+                "restaurant": {"name": r["name"], "address": r.get("address"), "phone": r.get("phone"), "note": r.get("menu_note")},
+                "categories": [{"id": c["id"], "name": c["name"]} for c in self.db["categories"]
+                               if c["restaurant_id"] == r["id"] and c["active"] and any(p["category_id"] == c["id"] for p in prods)],
+                "products": [{"id": p["id"], "name": p["name"], "description": p.get("description"), "price": p["price"],
+                              "category_id": p.get("category_id"), "favorite": p.get("is_favorite"), "image_url": None,
+                              "options": options(p["id"])} for p in prods]})
         if path == "/rest/v1/rpc/register_purchase":
             p = json.loads(req.post_data or "{}")["p_purchase"]
             sup = self._find("suppliers", p["supplier_id"])

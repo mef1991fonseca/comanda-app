@@ -180,7 +180,7 @@ export type Database = {
         Relationships: []
       }
       restaurants: {
-        Row: { address: string | null; created_at: Ts; created_by: string | null; cuit: string | null; currency: string; id: string; legal_name: string | null; name: string; phone: string | null; timezone: string; updated_at: Ts }
+        Row: { address: string | null; created_at: Ts; created_by: string | null; cuit: string | null; currency: string; id: string; legal_name: string | null; menu_note: string | null; menu_public: boolean; menu_slug: string | null; name: string; phone: string | null; timezone: string; updated_at: Ts }
         Insert: { address?: string | null; created_at?: Ts; created_by?: string | null; cuit?: string | null; currency?: string; id?: string; legal_name?: string | null; name: string; phone?: string | null; timezone?: string; updated_at?: Ts }
         Update: Partial<Database['public']['Tables']['restaurants']['Insert']>
         Relationships: []
@@ -217,6 +217,14 @@ export type Database = {
     Functions: {
       accept_invite: {
         Args: { p_token: string }
+        Returns: string
+      }
+      public_menu: {
+        Args: { p_slug: string }
+        Returns: Json
+      }
+      set_public_menu: {
+        Args: { p_restaurant: string; p_slug: string; p_public: boolean; p_note?: string }
         Returns: string
       }
       supplier_payment: {

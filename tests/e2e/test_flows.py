@@ -60,7 +60,7 @@ with sync_playwright() as p:
 
     # ---------- Carta ----------
     page.get_by_role("link", name="Más").click()
-    page.get_by_role("button", name="Carta").click()
+    page.get_by_role("button", name="Carta Productos, recetas y modificadores").click()
     expect(page.get_by_text("Tu carta está vacía")).to_be_visible()
     for cat in ["Principales", "Bebidas"]:
         page.get_by_role("button", name="Nueva categoría").click()
@@ -333,7 +333,7 @@ with sync_playwright() as p:
 
     # ---------- Receta de la milanesa ----------
     page.get_by_role("link", name="Más").click()
-    page.get_by_role("button", name="Carta").click()
+    page.get_by_role("button", name="Carta Productos, recetas y modificadores").click()
     page.get_by_role("button", name="Milanesa napolitana").click()
     page.get_by_role("button", name="Agregar insumo").click()
     page.get_by_label("Insumo 1", exact=True).select_option(label="Muzzarella")
@@ -772,6 +772,44 @@ with sync_playwright() as p:
     expect(page.locator(".ticket-total")).to_contain_text("$ 30.820")
     expect(page.locator(".list-row").filter(has_text="Pago · Transferencia")).to_contain_text("−$ 20.000")
     shot(page, "s10-03-proveedor")
+
+    # ---------- Carta QR ----------
+    page.get_by_role("link", name="Más").click()
+    page.get_by_role("button", name="Carta QR La carta en el celular del cliente").click()
+    expect(page.get_by_label("Dirección de la carta")).to_have_value("bodegon-qa")
+    page.get_by_label("Aviso arriba de la carta").fill("Abierto de 12 a 16 y de 20 a 24")
+    page.get_by_role("button", name="Publicar carta").click()
+    expect(page.get_by_role("status")).to_contain_text("La carta está publicada")
+    expect(page.get_by_role("img", name="QR de la carta").locator("svg")).to_be_visible()
+    expect(page.locator(".qr-link")).to_have_text(BASE + "/m/bodegon-qa")
+    shot(page, "s11-01-carta-qr")
+    page.get_by_role("button", name="Imprimir QR para las mesas").click()
+    expect(page.locator(".qr-card")).to_have_count(13)   # carta general + 12 mesas
+    expect(page.locator(".qr-card").nth(7)).to_contain_text("Mesa 7")
+    page.set_viewport_size({"width": 1180, "height": 820})
+    shot(page, "s11-02-qr-mesas")
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.get_by_role("button", name="Volver").click()
+
+    # el cliente escanea el QR de la mesa 7: sin sesión
+    guest = browser.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2, locale="es-AR")
+    gp = guest.new_page()
+    gp.route("https://mosfrmkbutyqqckjnkkd.supabase.co/**", fake.handle)
+    gp.goto(BASE + "/m/bodegon-qa?mesa=7")
+    expect(gp.locator(".pmenu-name")).to_have_text("Bodegón QA")
+    expect(gp.locator(".pmenu-table")).to_have_text("Mesa 7")
+    expect(gp.locator(".pmenu-note")).to_contain_text("Abierto de 12 a 16")
+    expect(gp.locator(".pmenu-item").filter(has_text="Milanesa napolitana")).to_contain_text("$ 12.500")
+    bife = gp.locator(".pmenu-item").filter(has_text="Bife de chorizo")
+    expect(bife).to_contain_text("Punto de la carne:")
+    expect(bife).to_contain_text("$ 15.000")
+    expect(gp.locator(".pmenu-nav a")).to_have_count(2)
+    shot(gp, "s11-03-carta-cliente")
+    gp.get_by_label("Buscar en la carta").fill("agua")
+    expect(gp.locator(".pmenu-item")).to_have_count(1)
+    gp.goto(BASE + "/m/no-existe")
+    expect(gp.get_by_text("Esta carta no está disponible")).to_be_visible()
+    guest.close()
 
     page.get_by_role("link", name="Más").click()
     page.get_by_role("button", name="Cerrar sesión").click()

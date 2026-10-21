@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useAuth } from './lib/auth'
 import { useRestaurant } from './lib/restaurant'
 import { AppShell, homeFor } from './components/AppShell'
@@ -22,6 +22,8 @@ import { Factura } from './pages/Factura'
 import { Imprimir } from './pages/Imprimir'
 import { Clientes, Cliente } from './pages/Clientes'
 import { Compras, CompraNueva, Proveedor } from './pages/Compras'
+import { PublicMenu } from './pages/PublicMenu'
+import { CartaQr, ImprimirQr } from './pages/CartaQr'
 import { Invitacion } from './pages/Invitacion'
 import { pendingInvite } from './lib/invites'
 
@@ -29,6 +31,15 @@ export function App() {
   const { session, loading: authLoading } = useAuth()
   const { loading, error, current, reload } = useRestaurant()
   const [invite, setInvite] = useState(pendingInvite)
+  const location = useLocation()
+
+  // La carta pública se ve sin iniciar sesión
+  if (location.pathname.startsWith('/m/'))
+    return (
+      <Routes>
+        <Route path="/m/:slug" element={<PublicMenu />} />
+      </Routes>
+    )
 
   if (authLoading) return <div className="center-screen">Cargando…</div>
   if (!session) return <Login />
@@ -47,6 +58,7 @@ export function App() {
     <Routes>
       <Route path="/nuevo-local" element={<Onboarding first={false} />} />
       <Route path="/factura/:invoiceId" element={<Factura />} />
+      <Route path="/imprimir/qr" element={<ImprimirQr />} />
       <Route path="/imprimir/:kind/:orderId" element={<Imprimir />} />
       <Route element={<AppShell />}>
         <Route path="/salon" element={<Salon />} />
@@ -59,6 +71,7 @@ export function App() {
             <Route path="/stock" element={<Stock />} />
             <Route path="/carta" element={<Carta />} />
             <Route path="/carta/modificadores" element={<Modificadores />} />
+            <Route path="/carta/qr" element={<CartaQr />} />
             <Route path="/equipo" element={<Equipo />} />
             <Route path="/facturacion" element={<Facturacion />} />
             <Route path="/compras" element={<Compras />} />
