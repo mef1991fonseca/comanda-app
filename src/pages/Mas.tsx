@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase, errorMessage } from '../lib/supabase'
 import { clearCache } from '../lib/offline'
 import { useSync } from '../lib/useSync'
-import { mpStatus } from '../lib/mercadopago'
+import { mpStatus, mpStatusText, type MpStatus } from '../lib/mercadopago'
 import { useAuth } from '../lib/auth'
 import { useCurrentRestaurant, useRestaurant } from '../lib/restaurant'
 import { roleLabel } from '../lib/format'
@@ -38,14 +38,16 @@ export function Mas() {
 
   const { pending } = useSync()
   const isAdmin = role === 'owner' || role === 'manager'
-  const [mp, setMp] = useState<string | null>(null)
+  const [mp, setMp] = useState<MpStatus | null>(null)
+  const [mpError, setMpError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isAdmin || !navigator.onLine) return
-    void mpStatus().then(({ data, error }) =>
-      setMp(error ?? (data?.connected ? `Conectado${data.test ? ' · cuenta de prueba' : ''}` : 'Sin conectar')),
-    )
-  }, [isAdmin])
+    void mpStatus(restaurant.id).then(({ data, error }) => {
+      setMp(data)
+      setMpError(error)
+    })
+  }, [isAdmin, restaurant.id])
 
   async function signOut() {
     if (
@@ -117,13 +119,13 @@ export function Mas() {
                 <span>Facturación electrónica</span>
                 <span className="muted">Datos fiscales y facturas</span>
               </button>
-              <div className="list-row">
+              <button className="list-row" onClick={() => navigate('/mercadopago')}>
                 <span className="product-line">
                   <span>Mercado Pago (QR)</span>
-                  <span className="product-sub">{mp ?? 'Revisando…'}</span>
+                  <span className="product-sub">{mpError ?? mpStatusText(mp)}</span>
                 </span>
-                {mp?.startsWith('Conectado') && <span className="badge">Activo</span>}
-              </div>
+                {mp?.own ? <span className="badge">Activo</span> : mp && <span className="badge badge-muted">Vincular</span>}
+              </button>
               </>
               )}
             </div>

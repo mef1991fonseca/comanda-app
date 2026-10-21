@@ -65,6 +65,14 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
   'refund' y la función reembolsa. El estado siempre se toma de `GET /v1/orders/{id}`, nunca del webhook.
   La app sigue el cobro por realtime + consulta cada 4 s (`useCharge`). Desplegar con `deploy_edge_function`.
   `pg_net` está habilitado para probar la función desde SQL.
+  **Cuenta propia por local (OAuth):** acciones `status`/`connect`/`disconnect` (con `restaurant_id`) y `GET /mercadopago/oauth`
+  (vuelta de MP: canjea el `code` con PKCE S256, guarda y redirige a `APP_URL/mercadopago?mp=conectado|error`).
+  Secretos `MP_CLIENT_ID`, `MP_CLIENT_SECRET` (aplicación de ALTech; redirect URL = `<SUPABASE_URL>/functions/v1/mercadopago/oauth`),
+  opcionales `MP_OAUTH_PKCE=0` y `APP_URL`. Tablas `mp_accounts` (los miembros leen), `mp_credentials` y
+  `mp_oauth_states` (sin políticas, solo service role). `accountFor(local)` usa el token del local y lo renueva con
+  refresh_token si vence en menos de 15 días; si el local no vinculó, usa `MP_ACCESS_TOKEN`. Al cambiar de cuenta se
+  borra `mp_pos` (sucursal y caja son de cada cuenta). Vincular: owner/manager; desvincular: solo owner y sin QR pendiente.
+  Pantalla `pages/MercadoPago.tsx` (Más → Mercado Pago).
 - **ARCA (factura electrónica, hoy homologación):** edge function `supabase/functions/arca` (node-forge).
   Modelo de proveedor: un certificado de ALTech firma por todos los locales; cada local delega WSFE a ese CUIT
   y factura con su CUIT (`fiscal_settings`, editable solo por owner; `environment` lo cambia solo soporte).
@@ -180,8 +188,8 @@ Salón, Comandas, Caja, Más; Cocina para ellos está en Más.
 - Caja: el arqueo ciego oculta en la interfaz; para que sea estricto habría que restringir por RLS la lectura de pagos del cajero.
 - Impresión: ESC/POS directo (WebUSB/Bluetooth) para celulares Android; hoy la impresión automática necesita una PC con la app abierta.
 - Cantidades con decimales se escriben con coma (es-AR): `parseAmount` toma el punto como separador de miles.
-- Mercado Pago: hoy usa una sola cuenta (la de prueba de ALTech) para todos los locales. Para producción falta
-  OAuth para que cada local vincule su cuenta, y cargar la dirección real del local en la sucursal de MP.
+- Mercado Pago: la vinculación por local está hecha pero necesita los secretos `MP_CLIENT_ID`/`MP_CLIENT_SECRET` de una
+  aplicación de MP con credenciales de producción. Falta cargar la dirección real del local en la sucursal de MP.
 - ARCA: notas de crédito parciales y pasar a producción (certificado de producción y delegación de cada local).
   Comandas cerradas hace más de 7 días no aparecen para facturar.
 - Dominio propio (hoy el subdominio de pages.dev).

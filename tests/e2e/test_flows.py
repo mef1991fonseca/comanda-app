@@ -498,7 +498,7 @@ with sync_playwright() as p:
     fake.db["profiles"].append({"id": lucia, "full_name": "Lucía Pérez"})
     fake.db["restaurant_members"].append({"restaurant_id": bodegon, "user_id": lucia, "role": "waiter", "display_name": None, "active": True})
     page.get_by_role("link", name="Más").click()
-    expect(page.locator(".list-row").filter(has_text="Mercado Pago (QR)")).to_contain_text("Conectado · cuenta de prueba")
+    expect(page.locator(".list-row").filter(has_text="Mercado Pago (QR)")).to_contain_text("Cuenta general de Comandá (de prueba)")
     page.get_by_role("button", name="Equipo Invitar personas y cambiar roles").click()
     expect(page.get_by_role("heading", name="Personas · 2")).to_be_visible()
     page.get_by_role("button", name="Invitar a alguien").click()
@@ -948,6 +948,23 @@ with sync_playwright() as p:
     page.goto(BASE + "/caja")
     page.get_by_role("group", name="Caja de este equipo").get_by_role("button", name="barra Cerrada").click()
     expect(page.locator(".list-row").filter(has_text="Esperado")).to_be_visible()
+
+    # ---------- Mercado Pago: el local vincula su propia cuenta ----------
+    page.get_by_role("link", name="Más").click()
+    page.get_by_role("button", name="Mercado Pago (QR)", exact=False).click()
+    expect(page.get_by_role("heading", name="Cobrá con QR en tu propia cuenta")).to_be_visible()
+    expect(page.locator(".content")).to_contain_text("cuenta general de Comandá, que es de prueba")
+    shot(page, "s17-01-mp-vincular")
+    page.get_by_role("button", name="Vincular mi cuenta de Mercado Pago").click()
+    expect(page.get_by_role("status")).to_contain_text("la cuenta quedó vinculada")
+    expect(page.locator(".ticket")).to_contain_text("YOPANCHO.LOCAL")
+    shot(page, "s17-02-mp-vinculada")
+    page.get_by_role("button", name="Volver a Más").click()
+    expect(page.locator(".list-row").filter(has_text="Mercado Pago (QR)")).to_contain_text("Tu cuenta · YOPANCHO.LOCAL")
+    page.get_by_role("button", name="Mercado Pago (QR)", exact=False).click()
+    page.get_by_role("button", name="Desvincular cuenta").click()
+    page.get_by_role("button", name="Desvincular", exact=True).click()
+    expect(page.get_by_role("heading", name="Cobrá con QR en tu propia cuenta")).to_be_visible()
 
     # ---------- Impresora de cocina: papel de 58 mm e impresión automática ----------
     printed_urls = []

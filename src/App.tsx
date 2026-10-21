@@ -22,6 +22,7 @@ import { Facturacion } from './pages/Facturacion'
 import { Factura } from './pages/Factura'
 import { Imprimir, PrintTest } from './pages/Imprimir'
 import { Impresora } from './pages/Impresora'
+import { MercadoPago } from './pages/MercadoPago'
 import { Clientes, Cliente } from './pages/Clientes'
 import { Compras, CompraNueva, Proveedor } from './pages/Compras'
 import { PublicMenu } from './pages/PublicMenu'
@@ -78,6 +79,7 @@ export function App() {
             <Route path="/carta/qr" element={<CartaQr />} />
             <Route path="/equipo" element={<Equipo />} />
             <Route path="/facturacion" element={<Facturacion />} />
+            <Route path="/mercadopago" element={<MercadoPago />} />
             <Route path="/compras" element={<Compras />} />
             <Route path="/compras/nueva" element={<CompraNueva />} />
             <Route path="/proveedores/:supplierId" element={<Proveedor />} />

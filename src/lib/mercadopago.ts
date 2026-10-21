@@ -25,7 +25,27 @@ export const createQrCharge = (orderId: string, amount: number) =>
   call<{ charge: MpCharge }>({ action: 'create', order_id: orderId, amount })
 export const refreshCharge = (chargeId: string) => call<{ charge: MpCharge }>({ action: 'refresh', charge_id: chargeId })
 export const cancelCharge = (chargeId: string) => call<{ charge: MpCharge }>({ action: 'cancel', charge_id: chargeId })
-export const mpStatus = () => call<{ connected: boolean; nickname: string | null; test: boolean }>({ action: 'status' })
+export type MpStatus = {
+  connected: boolean
+  /** true: cobra en la cuenta del local; false: en la cuenta general de Comandá */
+  own: boolean
+  nickname: string | null
+  test: boolean
+  /** La aplicación de Mercado Pago está configurada en el servidor (se puede vincular) */
+  oauth_ready: boolean
+  expires_at?: string | null
+}
+export const mpStatus = (restaurantId: string) => call<MpStatus>({ action: 'status', restaurant_id: restaurantId })
+/** Devuelve la URL de autorización de Mercado Pago; al aceptar, vuelve a /mercadopago?mp=conectado */
+export const mpConnect = (restaurantId: string) => call<{ url: string }>({ action: 'connect', restaurant_id: restaurantId })
+export const mpDisconnect = (restaurantId: string) => call<{ ok: true }>({ action: 'disconnect', restaurant_id: restaurantId })
+
+export function mpStatusText(s: MpStatus | null): string {
+  if (!s) return 'Revisando…'
+  if (!s.connected) return 'Sin vincular'
+  if (s.own) return `Tu cuenta${s.nickname ? ` · ${s.nickname}` : ''}${s.test ? ' · de prueba' : ''}`
+  return `Cuenta general de Comandá${s.test ? ' (de prueba)' : ''}`
+}
 
 /**
  * Sigue un cobro hasta que se paga, se cancela o vence: escucha en tiempo real

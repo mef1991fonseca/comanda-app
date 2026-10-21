@@ -472,7 +472,17 @@ class FakeSupabase:
     def _mercadopago(self, body):
         action = body.get("action")
         if action == "status":
-            return {"connected": True, "nickname": "TESTUSER123", "test": True}
+            if getattr(self, "mp_own", None):
+                return {"connected": True, "own": True, "nickname": self.mp_own, "test": False, "oauth_ready": True,
+                        "expires_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 180 * 86400))}
+            return {"connected": True, "own": False, "nickname": "TESTUSER123", "test": True, "oauth_ready": True}
+        if action == "connect":
+            # En la vida real va a auth.mercadopago.com y vuelve por la función; acá se vincula directo
+            self.mp_own = "YOPANCHO.LOCAL"
+            return {"url": "/mercadopago?mp=conectado"}
+        if action == "disconnect":
+            self.mp_own = None
+            return {"ok": True}
         if action == "create":
             order = self._find("orders", body["order_id"])
             if not order or order["status"] != "open":
