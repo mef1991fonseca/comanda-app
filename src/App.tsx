@@ -15,6 +15,7 @@ import { Cocina } from './pages/Cocina'
 import { Caja } from './pages/Caja'
 import { Inicio } from './pages/Inicio'
 import { Reportes } from './pages/Reportes'
+import { Resultados } from './pages/Resultados'
 import { Stock } from './pages/Stock'
 import { Equipo } from './pages/Equipo'
 import { Facturacion } from './pages/Facturacion'
@@ -68,6 +69,7 @@ export function App() {
           <>
             <Route path="/inicio" element={<Inicio />} />
             <Route path="/reportes" element={<Reportes />} />
+            <Route path="/resultados" element={<Resultados />} />
             <Route path="/stock" element={<Stock />} />
             <Route path="/carta" element={<Carta />} />
             <Route path="/carta/modificadores" element={<Modificadores />} />

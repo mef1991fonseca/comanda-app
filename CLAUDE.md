@@ -85,6 +85,11 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
   `public_menu(slug)` (única puerta para `anon`: nombre, descripción, precio y opciones de productos activos; nada
   de costos ni stock). Ruta pública `/m/:slug?mesa=N` (`pages/PublicMenu.tsx`), que `App` atiende antes del login.
   Pantallas: Más → Carta QR (`/carta/qr`) e `/imprimir/qr` (un QR por mesa + uno general).
+- **Estado de resultados:** RPC `income_statement(local, meses)` (owner/manager, security invoker, meses en la zona del
+  local): ventas de comandas cerradas, costo de lo vendido por receta con costo actual, gastos por categoría (compras
+  no anuladas por fecha del comprobante, sin mercadería ni bebidas porque van a stock y ya entran como costo),
+  compras de mercadería y propinas informativas, y ventas sin receta. Resultado = ventas − costo − gastos, se calcula
+  en el cliente. Pantalla `pages/Resultados.tsx` (Más → Estado de resultados).
 - **Impresión:** `/imprimir/precuenta/:id` y `/imprimir/cocina/:id` (`pages/Imprimir.tsx`), tickets de 80 mm con
   la impresión del navegador (página con nombre `@page receipt`, clase `.receipt-page`; el resto imprime en A4). Sirve con cualquier impresora instalada en el equipo; la
   impresión directa ESC/POS sin diálogo sigue pendiente.
@@ -136,7 +141,7 @@ mostrador) · Comanda (carta + pedido, envío a cocina, cancelar, marcar entrega
 sonoro con Web Audio) · Caja (apertura, ingresos/retiros, resumen por medio de pago, cierre con arqueo;
 `lib/cash.ts` replica el cálculo de `close_cash_session`) · Carta y Modificadores (owner/manager; la ficha
 del producto incluye receta con costo y margen) · Stock (insumos, compra/merma/ajuste/conteo, historial,
-alertas de faltante) · Reportes (`components/BarChart.tsx`: una serie, un tono, tooltip y tabla) · Inicio
+alertas de faltante) · Reportes (`components/BarChart.tsx`: una serie, un tono, tooltip y tabla) · Estado de resultados · Inicio
 (home de owner/manager: ventas de hoy, ahora, faltantes) · Equipo (personas, roles, links de invitación) ·
 Invitación (aceptar) · Más. Owner/manager tienen pestañas Inicio,
 Salón, Comandas, Caja, Más; Cocina para ellos está en Más.

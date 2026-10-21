@@ -177,6 +177,10 @@ p {
   background: var(--bottle-soft);
   color: var(--bottle-deep);
 }
+.notice-warn {
+  background: var(--mustard-soft);
+  color: #6b4a06;
+}
 
 /* ---------- Pantallas de acceso (login, crear local) ---------- */
 .entry {
@@ -1561,6 +1565,63 @@ a.btn {
 }
 .report-grid .section {
   align-content: start;
+}
+
+/* ---------- Estado de resultados ---------- */
+.month-chips {
+  overflow-x: auto;
+  flex-wrap: nowrap;
+}
+.pnl {
+  margin: 0;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 4px 16px;
+}
+.pnl-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.pnl-row:first-child {
+  border-top: 0;
+}
+.pnl-row dt,
+.pnl-row dd {
+  margin: 0;
+}
+.pnl-row dd {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pnl-sub {
+  border-top: 0;
+  padding-top: 0;
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+.pnl-strong,
+.pnl-total {
+  font-weight: 600;
+}
+.pnl-result {
+  border-top: 2px solid var(--ink);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+.pnl-result .muted {
+  font-size: 1rem;
+}
+.pnl-notes {
+  display: grid;
+  gap: 10px;
+}
+.pnl-notes p {
+  margin: 0;
 }
 
 /* ---------- Cobro con QR de Mercado Pago ---------- */

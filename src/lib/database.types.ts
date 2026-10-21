@@ -259,6 +259,10 @@ export type Database = {
         Args: { p_name: string; p_tables?: number }
         Returns: string
       }
+      income_statement: {
+        Args: { p_restaurant: string; p_months?: number }
+        Returns: Json
+      }
       sales_report: {
         Args: { p_restaurant: string; p_from: string; p_to: string }
         Returns: Json

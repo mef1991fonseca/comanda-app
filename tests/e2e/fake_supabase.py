@@ -261,6 +261,43 @@ class FakeSupabase:
             "products": sorted(products, key=lambda x: -x["revenue"]),
         }
 
+    def _income_statement(self, args):
+        parse = lambda x: datetime.fromisoformat(x.replace("Z", "+00:00"))
+        tz = ZoneInfo("America/Argentina/Buenos_Aires")
+        rid, n = args["p_restaurant"], int(args.get("p_months") or 6)
+        now = datetime.now(tz)
+        months = []
+        y, m = now.year, now.month
+        for _ in range(n):
+            months.append(f"{y:04d}-{m:02d}")
+            y, m = (y, m - 1) if m > 1 else (y - 1, 12)
+        months.reverse()
+        ing_cost = {i["id"]: i["cost_per_unit"] for i in self.db["ingredients"]}
+        unit_cost = {}
+        for r in self.db["recipe_items"]:
+            unit_cost[r["product_id"]] = unit_cost.get(r["product_id"], 0) + r["quantity"] * ing_cost.get(r["ingredient_id"], 0)
+        out = []
+        for key in months:
+            orders = [o for o in self.db["orders"] if o["restaurant_id"] == rid and o["status"] == "closed" and o.get("closed_at")
+                      and parse(o["closed_at"]).astimezone(tz).strftime("%Y-%m") == key]
+            ids = {o["id"] for o in orders}
+            items = [i for i in self.db["order_items"] if i["order_id"] in ids and i["status"] != "cancelled"]
+            pu = [p for p in self.db["purchases"] if p["restaurant_id"] == rid and not p.get("cancelled_at") and p["issued_on"][:7] == key]
+            exp = {}
+            for p in pu:
+                if p["category"] not in ("mercaderia", "bebidas"):
+                    exp[p["category"]] = exp.get(p["category"], 0) + p["total"]
+            out.append({
+                "month": key, "orders": len(orders), "sales": sum(o["total"] for o in orders),
+                "discounts": sum(o["discount_amount"] for o in orders),
+                "tips": sum(p["tip"] for p in self.db["payments"] if p["order_id"] in ids and not p.get("voided_at")),
+                "cogs": round(sum(i["quantity"] * unit_cost.get(i.get("product_id"), 0) for i in items), 2),
+                "sales_without_recipe": sum(i["line_total"] for i in items if i.get("product_id") not in unit_cost),
+                "inventory_purchases": sum(p["total"] for p in pu if p["category"] in ("mercaderia", "bebidas")),
+                "expenses": exp,
+            })
+        return out
+
     def _close_cash(self, args):
         sess = self._find("cash_sessions", args["p_session"])
         if not sess or sess.get("closed_at"):
@@ -636,6 +673,8 @@ class FakeSupabase:
                 return reply(400, {"code": "P0001", "message": str(e)})
         if path == "/rest/v1/rpc/stock_count":
             return reply(200, self._stock_count(json.loads(req.post_data or "{}")))
+        if path == "/rest/v1/rpc/income_statement":
+            return reply(200, self._income_statement(json.loads(req.post_data or "{}")))
         if path == "/rest/v1/rpc/sales_report":
             return reply(200, self._sales_report(json.loads(req.post_data or "{}")))
         if path == "/functions/v1/arca":

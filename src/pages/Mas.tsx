@@ -91,6 +91,10 @@ export function Mas() {
                 <span>Reportes</span>
                 <span className="muted">Ventas, medios de pago y productos</span>
               </button>
+              <button className="list-row" onClick={() => navigate('/resultados')}>
+                <span>Estado de resultados</span>
+                <span className="muted">Ventas menos costo y gastos, mes a mes</span>
+              </button>
               <button className="list-row" onClick={() => navigate('/cocina')}>
                 <span>Pantalla de cocina</span>
                 <span className="muted">Pedidos en preparación</span>

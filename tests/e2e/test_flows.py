@@ -811,6 +811,20 @@ with sync_playwright() as p:
     expect(gp.get_by_text("Esta carta no está disponible")).to_be_visible()
     guest.close()
 
+    # ---------- Estado de resultados ----------
+    page.get_by_role("link", name="Más").click()
+    page.get_by_role("button", name="Estado de resultados Ventas menos costo y gastos, mes a mes").click()
+    expect(page.locator(".pnl-result")).to_contain_text("$ 77.500")   # 101.500 de ventas − 24.000 de costo, sin gastos en el mes
+    expect(page.locator(".notice-warn")).to_contain_text("sin receta")
+    expect(page.locator(".report-table tbody tr")).to_have_count(6)
+    shot(page, "s12-01-resultados")
+    page.get_by_role("button", name="Últimos 12 meses").click()
+    expect(page.locator(".report-table tbody tr")).to_have_count(12)
+    page.set_viewport_size({"width": 1180, "height": 820})
+    page.get_by_role("button", name="Últimos 6 meses").click()
+    shot(page, "s12-02-resultados-tablet")
+    page.set_viewport_size({"width": 390, "height": 844})
+
     page.get_by_role("link", name="Más").click()
     page.get_by_role("button", name="Cerrar sesión").click()
     expect(page.get_by_label("Email")).to_be_visible()

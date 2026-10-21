@@ -18,6 +18,8 @@ Nombre provisorio.
 | 8 | Factura electrónica ARCA (homologación) con notas de crédito | Listo |
 | 9 | Clientes y cuenta corriente | Listo |
 | 10 | Proveedores, compras y gastos con cuenta corriente | Listo |
+| 11 | Carta QR pública | Listo |
+| 12 | Estado de resultados mensual | Listo |
 
 ## Correr el proyecto
 
