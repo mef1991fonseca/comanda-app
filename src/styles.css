@@ -2021,3 +2021,33 @@ a.btn {
 .register-row.is-off {
   opacity: 0.6;
 }
+
+/* ---------- Comandas cerradas ---------- */
+.orders-view {
+  margin-bottom: 14px;
+}
+.closed-row {
+  gap: 10px;
+  padding: 0;
+}
+.closed-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  background: none;
+  border: 0;
+  padding: 14px 0 14px 16px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.btn-small {
+  padding: 0 14px;
+  margin-right: 12px;
+  font-size: 0.9375rem;
+  flex-shrink: 0;
+}

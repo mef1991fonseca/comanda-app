@@ -24,6 +24,7 @@ Nombre provisorio.
 | 14 | Mínimos y máximos de modificadores en el servidor | Listo |
 | 15 | Varias cajas y arqueo ciego | Listo |
 | 16 | Cobrar sin conexión (efectivo, tarjeta, transferencia) | Listo |
+| 17 | Facturar comandas ya cerradas | Listo |
 
 ## Correr el proyecto
 

@@ -73,7 +73,8 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
   `csr`, `set_cert`, `test`. Acción con sesión `invoice`: Factura C (monotributo) o B/A con IVA 21 %
   (responsable inscripto); pide el último número, reintenta ante 10016 y guarda el CAE en `invoices`
   (el cliente solo lee). Ticket WSAA cacheado en `arca_tokens` (ARCA no da otro mientras esté vigente).
-  Pantallas: Más → Facturación, cierre "Cerrar y facturar" en el cobro, `/factura/:id` imprimible con QR fiscal.
+  Pantallas: Más → Facturación, cierre "Cerrar y facturar" en el cobro, Comandas → Cerradas (últimos 7 días, filtro
+  "Solo sin factura", botón Facturar con fecha de hoy; owner/manager/cashier), `/factura/:id` imprimible con QR fiscal.
   Notas de crédito (acción `credit_note`, owner/manager): por el total, tipo 3/8/13 con `CbtesAsoc`, en la misma
   tabla `invoices` (`associated_id` → factura; la factura guarda `credit_note_id`). Una factura vigente por comanda
   (índice parcial sin `credit_note_id`), así que después de anular se puede facturar de nuevo desde `/factura/:id`.
@@ -157,7 +158,7 @@ Texto de interfaz: oraciones cortas, verbos concretos, sin disculpas en errores.
 ## Pantallas (src/pages)
 
 Salón (mesas en vivo; mostaza = algo sin enviar o listo para servir) · Comandas (abiertas + venta de
-mostrador) · Comanda (carta + pedido, envío a cocina, cancelar, marcar entregado, cobrar con
+mostrador; pestaña Cerradas para facturar) · Comanda (carta + pedido, envío a cocina, cancelar, marcar entregado, cobrar con
 `components/PaySheet.tsx`) · Cocina (KDS oscuro, tickets por comanda/estación, semáforo 10/20 min, aviso
 sonoro con Web Audio) · Caja (selector de caja del equipo, apertura, ingresos/retiros, resumen por medio de pago, cierre con arqueo o arqueo ciego, "Administrar cajas";
 `lib/cash.ts` replica el cálculo de `close_cash_session`) · Carta y Modificadores (owner/manager; la ficha
@@ -169,13 +170,13 @@ Salón, Comandas, Caja, Más; Cocina para ellos está en Más.
 
 ## Pendientes conocidos
 
-- Sin conexión no se cobra con Mercado Pago ni cuenta corriente, ni se factura; tampoco se puede facturar después una comanda ya cerrada.
+- Sin conexión no se cobra con Mercado Pago ni cuenta corriente, ni se factura (se factura después desde Comandas → Cerradas).
 - Caja: el arqueo ciego oculta en la interfaz; para que sea estricto habría que restringir por RLS la lectura de pagos del cajero.
 - Impresión directa ESC/POS (sin el diálogo del navegador) y salida automática a la impresora de cocina al enviar.
 - Cantidades con decimales se escriben con coma (es-AR): `parseAmount` toma el punto como separador de miles.
 - Mercado Pago: hoy usa una sola cuenta (la de prueba de ALTech) para todos los locales. Para producción falta
   OAuth para que cada local vincule su cuenta, y cargar la dirección real del local en la sucursal de MP.
-- ARCA: notas de crédito parciales, pasar a producción (certificado de producción y delegación de
-  cada local) y facturar desde reportes/comandas viejas.
+- ARCA: notas de crédito parciales y pasar a producción (certificado de producción y delegación de cada local).
+  Comandas cerradas hace más de 7 días no aparecen para facturar.
 - Dominio propio (hoy el subdominio de pages.dev).
 - Confirmación de email: Supabase usa el SMTP por defecto (límite bajo); configurar SMTP propio antes de pilotos.

@@ -865,6 +865,23 @@ with sync_playwright() as p:
     shot(page, "s12-02-resultados-tablet")
     page.set_viewport_size({"width": 390, "height": 844})
 
+    # ---------- Facturar una comanda ya cerrada (la que se cobró sin conexión) ----------
+    page.get_by_role("link", name="Comandas").click()
+    page.get_by_role("group", name="Qué comandas ver").get_by_role("button", name="Cerradas").click()
+    page.get_by_label("Solo sin factura", exact=False).check()
+    row = page.locator(".closed-row").filter(has_text="Para llevar · Sin red")
+    expect(row).to_contain_text("$ 4.000")
+    shot(page, "s15-01-cerradas")
+    row.get_by_role("button", name="Facturar").click()
+    page.get_by_role("dialog", name="Facturar Para llevar · Sin red").get_by_role("button", name="Emitir factura").click()
+    expect(page.locator(".invoice-kind")).to_be_visible()
+    expect(page.locator(".invoice")).to_contain_text("CAE")
+    sinred_inv = next(i for i in fake.db["invoices"] if i["order_id"] == sinred["id"])
+    assert sinred_inv["status"] == "authorized", sinred_inv
+    page.goto(BASE + "/comandas")
+    page.get_by_role("group", name="Qué comandas ver").get_by_role("button", name="Cerradas").click()
+    expect(page.locator(".closed-row").filter(has_text="Para llevar · Sin red").get_by_role("button", name="Ver factura")).to_be_visible()
+
     # ---------- Varias cajas y arqueo ciego ----------
     page.get_by_role("link", name="Caja").click()
     expect(page.locator(".register-picker")).to_have_count(0)   # con una sola caja no hay selector

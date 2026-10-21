@@ -8,6 +8,10 @@ import { cachedQuery } from '../lib/offline'
 import type { Enums } from '../lib/database.types'
 import { TopBar } from '../components/AppShell'
 import { Sheet } from '../components/Sheet'
+import { InvoiceForm } from '../components/InvoiceForm'
+import { cbteLabel, invoiceNumber, type Invoice } from '../lib/invoices'
+import type { Customer } from '../lib/customers'
+import { useSync } from '../lib/useSync'
 
 type Row = { order: Order; tableName: string | null; pending: number; ready: number }
 
@@ -19,6 +23,7 @@ export function Comandas() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const [view, setView] = useState<'open' | 'closed'>('open')
   const [, setTick] = useState(0)
 
   const load = useCallback(async () => {
@@ -86,6 +91,7 @@ export function Comandas() {
   }, [rid, load])
 
   const canSell = ['owner', 'manager', 'cashier', 'waiter'].includes(role)
+  const canSeeClosed = ['owner', 'manager', 'cashier'].includes(role)
 
   return (
     <>
@@ -98,7 +104,16 @@ export function Comandas() {
           </div>
         )}
 
-        {loading ? (
+        {canSeeClosed && (
+          <div className="switcher orders-view" role="group" aria-label="Qué comandas ver">
+            <button type="button" aria-pressed={view === 'open'} onClick={() => setView('open')}>Abiertas</button>
+            <button type="button" aria-pressed={view === 'closed'} onClick={() => setView('closed')}>Cerradas</button>
+          </div>
+        )}
+
+        {view === 'closed' ? (
+          <ClosedOrders restaurantId={rid} />
+        ) : loading ? (
           <p className="muted">Cargando comandas…</p>
         ) : rows.length === 0 ? (
           <div className="empty">
@@ -130,6 +145,136 @@ export function Comandas() {
           onClose={() => setCreating(false)}
           onCreated={(id) => navigate(`/comanda/${id}`)}
         />
+      )}
+    </>
+  )
+}
+
+const closedFmt = new Intl.DateTimeFormat('es-AR', { weekday: 'short', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })
+
+type ClosedRow = { order: Order; tableName: string | null; invoice: Invoice | null }
+
+/** Comandas cerradas de los últimos 7 días, con su factura (si tiene) y el botón para facturar las que no. */
+function ClosedOrders({ restaurantId }: { restaurantId: string }) {
+  const navigate = useNavigate()
+  const { online } = useSync()
+  const [rows, setRows] = useState<ClosedRow[] | null>(null)
+  const [fiscalOn, setFiscalOn] = useState(false)
+  const [onlyPending, setOnlyPending] = useState(false)
+  const [invoicing, setInvoicing] = useState<{ order: Order; customer: Customer | null } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    const [o, t, f] = await Promise.all([
+      supabase
+        .from('orders')
+        .select('*')
+        .eq('restaurant_id', restaurantId)
+        .eq('status', 'closed')
+        .gte('closed_at', since)
+        .order('closed_at', { ascending: false })
+        .limit(100),
+      supabase.from('tables').select('id, name').eq('restaurant_id', restaurantId),
+      supabase.from('fiscal_settings').select('enabled').eq('restaurant_id', restaurantId).maybeSingle(),
+    ])
+    if (o.error) return setError(errorMessage(o.error))
+    const orders = o.data ?? []
+    const ids = orders.map((x) => x.id)
+    const inv = ids.length
+      ? await supabase
+          .from('invoices')
+          .select('*')
+          .in('order_id', ids)
+          .eq('status', 'authorized')
+          .in('cbte_type', [1, 6, 11])
+          .is('credit_note_id', null)
+      : { data: [] as Invoice[], error: null }
+    const byOrder = new Map((inv.data ?? []).map((x) => [x.order_id, x]))
+    const names = new Map((t.data ?? []).map((x) => [x.id, x.name]))
+    setFiscalOn(Boolean(f.data?.enabled))
+    setRows(
+      orders.map((order) => ({
+        order,
+        tableName: order.table_id ? names.get(order.table_id) ?? null : null,
+        invoice: byOrder.get(order.id) ?? null,
+      })),
+    )
+    setError(null)
+  }, [restaurantId])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  async function startInvoice(order: Order) {
+    let customer: Customer | null = null
+    if (order.customer_id) {
+      const { data } = await supabase.from('customers').select('*').eq('id', order.customer_id).maybeSingle()
+      customer = data
+    }
+    setInvoicing({ order, customer })
+  }
+
+  if (!online) return <p className="muted">Las comandas cerradas se ven con conexión.</p>
+  if (error) return <div className="notice notice-error" role="alert">{error}</div>
+  if (!rows) return <p className="muted">Cargando comandas cerradas…</p>
+
+  const pendingCount = rows.filter((r) => !r.invoice).length
+  const shown = onlyPending ? rows.filter((r) => !r.invoice) : rows
+
+  return (
+    <>
+      {fiscalOn && rows.length > 0 && (
+        <label className="check">
+          <input type="checkbox" checked={onlyPending} onChange={(e) => setOnlyPending(e.target.checked)} />
+          <span>Solo sin factura ({pendingCount})</span>
+        </label>
+      )}
+      {shown.length === 0 ? (
+        <div className="empty">
+          <h2>{onlyPending ? 'Todas las comandas tienen factura' : 'No hay comandas cerradas en los últimos 7 días'}</h2>
+        </div>
+      ) : (
+        <div className="list">
+          {shown.map(({ order, tableName, invoice }) => (
+            <div key={order.id} className="list-row closed-row">
+              <button className="closed-main" onClick={() => navigate(`/comanda/${order.id}`)}>
+                <span className="product-line">
+                  <span>{orderTitle(order, tableName)}</span>
+                  <span className="product-sub">
+                    {order.number ? `#${order.number} · ` : ''}
+                    {order.closed_at ? closedFmt.format(new Date(order.closed_at)) : ''}
+                    {invoice && ` · ${cbteLabel[invoice.cbte_type]?.name ?? 'Factura'} ${invoiceNumber(invoice)}`}
+                  </span>
+                </span>
+                <span className="price">{formatMoney(order.total)}</span>
+              </button>
+              {invoice ? (
+                <button className="btn btn-quiet btn-small" onClick={() => navigate(`/factura/${invoice.id}`)}>Ver factura</button>
+              ) : fiscalOn && order.total > 0 ? (
+                <button className="btn btn-quiet btn-small" onClick={() => void startInvoice(order)}>Facturar</button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )}
+      {fiscalOn && <p className="hint muted">La factura sale con la fecha de hoy.</p>}
+
+      {invoicing && (
+        <Sheet
+          title={`Facturar ${orderTitle(invoicing.order, rows.find((r) => r.order.id === invoicing.order.id)?.tableName)}`}
+          aside={<span className="price">{formatMoney(invoicing.order.total)}</span>}
+          onClose={() => setInvoicing(null)}
+        >
+          <InvoiceForm
+            orderId={invoicing.order.id}
+            total={invoicing.order.total}
+            customer={invoicing.customer}
+            onDone={(inv) => navigate(`/factura/${inv.id}`)}
+            onSkip={() => setInvoicing(null)}
+          />
+        </Sheet>
       )}
     </>
   )
