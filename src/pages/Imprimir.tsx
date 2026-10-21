@@ -1,35 +1,56 @@
 import { useEffect, useRef } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { itemModifiers, orderNumberLabel, orderTitle, useOrder } from '../lib/orders'
 import { useCurrentRestaurant } from '../lib/restaurant'
 import { useMenu } from '../lib/menu'
 import { useTeam } from '../lib/team'
 import { formatMoney } from '../lib/format'
+import { usePrinterSettings } from '../lib/printer'
 
 /**
- * Tickets para impresora térmica de 80 mm (o cualquier impresora) usando la impresión del navegador.
- *  /imprimir/precuenta/:orderId   precuenta para el cliente, no válida como factura
- *  /imprimir/cocina/:orderId      comanda para cocina, por estación y sin precios
+ * Tickets para impresora térmica de 80 o 58 mm (o cualquier impresora) usando la impresión del navegador.
+ *  /imprimir/precuenta/:orderId          precuenta para el cliente, no válida como factura
+ *  /imprimir/cocina/:orderId             comanda para cocina, por estación y sin precios
+ *  ?items=a,b                            solo esos ítems (lo recién enviado; sale como "Agregado" si ya había otros)
+ *  ?embed=1                              dentro del marco oculto de lib/printer.ts: imprime y avisa al terminar
+ * El ancho del papel sale de la configuración de este equipo (Más → Impresora).
  */
-export function Imprimir() {
-  const { kind = 'precuenta', orderId = '' } = useParams()
-  const navigate = useNavigate()
-  const { restaurant } = useCurrentRestaurant()
-  const { order, items, tableName, loading } = useOrder(orderId)
-  const { menu } = useMenu(restaurant.id)
-  const team = useTeam(restaurant.id)
+function useAutoPrint(ready: boolean, embed: boolean) {
   const printed = useRef(false)
-
-  const live = items.filter((i) => i.status !== 'cancelled')
-  const ready = !loading && order !== null && (kind !== 'cocina' || menu.stations.length > 0 || live.every((i) => !i.station_id))
-
   useEffect(() => {
     if (!ready || printed.current) return
     printed.current = true
-    // Un instante para que el navegador termine de dibujar antes del diálogo
-    const t = window.setTimeout(() => window.print(), 300)
+    const finish = () => {
+      if (embed) window.parent.postMessage({ type: 'comanda-printed' }, window.location.origin)
+    }
+    window.addEventListener('afterprint', finish, { once: true })
+    // Un instante para que el navegador termine de dibujar antes de imprimir
+    const t = window.setTimeout(() => {
+      window.print()
+      // Con --kiosk-printing algunos navegadores no disparan afterprint
+      window.setTimeout(finish, 1500)
+    }, 300)
     return () => window.clearTimeout(t)
-  }, [ready])
+  }, [ready, embed])
+}
+export function Imprimir() {
+  const { kind = 'precuenta', orderId = '' } = useParams()
+  const [params] = useSearchParams()
+  const embed = params.get('embed') === '1'
+  const only = params.get('items')?.split(',').filter(Boolean) ?? null
+  const navigate = useNavigate()
+  const { restaurant } = useCurrentRestaurant()
+  const { settings } = usePrinterSettings(restaurant.id)
+  const { order, items, tableName, loading } = useOrder(orderId)
+  const { menu } = useMenu(restaurant.id)
+  const team = useTeam(restaurant.id)
+
+  const all = items.filter((i) => i.status !== 'cancelled')
+  const live = only ? all.filter((i) => only.includes(i.id)) : all
+  const added = Boolean(only) && all.some((i) => !only?.includes(i.id) && i.status !== 'pending')
+  const ready = !loading && order !== null && (kind !== 'cocina' || menu.stations.length > 0 || live.every((i) => !i.station_id))
+
+  useAutoPrint(ready, embed)
 
   if (loading) return <div className="center-screen">Preparando el ticket…</div>
   if (!order) return <div className="center-screen">No se encontró la comanda.</div>
@@ -39,14 +60,17 @@ export function Imprimir() {
   const when = new Date().toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
 
   return (
-    <div className="print-page receipt-page">
-      <div className="print-actions no-print">
-        <button className="btn btn-quiet" onClick={() => navigate(-1)}>Volver</button>
-        <button className="btn btn-primary" onClick={() => window.print()}>Imprimir</button>
-      </div>
+    <div className={`print-page receipt-page ${settings.paper === 58 ? 'paper-58' : ''}`}>
+      {!embed && (
+        <div className="print-actions no-print">
+          <button className="btn btn-quiet" onClick={() => navigate(-1)}>Volver</button>
+          <button className="btn btn-primary" onClick={() => window.print()}>Imprimir</button>
+        </div>
+      )}
 
       {kind === 'cocina' ? (
         <article className="receipt">
+          {added && <div className="receipt-center receipt-added">AGREGADO</div>}
           <div className="receipt-big">{where}</div>
           <div className="receipt-center">
             {orderNumberLabel(order)} · {when}
@@ -111,6 +135,41 @@ export function Imprimir() {
           <div className="receipt-center">¡Gracias por venir!</div>
         </article>
       )}
+    </div>
+  )
+}
+
+/** Hoja de prueba para configurar la impresora de este equipo. */
+export function PrintTest() {
+  const [params] = useSearchParams()
+  const embed = params.get('embed') === '1'
+  const navigate = useNavigate()
+  const { restaurant } = useCurrentRestaurant()
+  const { settings } = usePrinterSettings(restaurant.id)
+  useAutoPrint(true, embed)
+  const when = new Date().toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+  return (
+    <div className={`print-page receipt-page ${settings.paper === 58 ? 'paper-58' : ''}`}>
+      {!embed && (
+        <div className="print-actions no-print">
+          <button className="btn btn-quiet" onClick={() => navigate(-1)}>Volver</button>
+          <button className="btn btn-primary" onClick={() => window.print()}>Imprimir</button>
+        </div>
+      )}
+      <article className="receipt">
+        <div className="receipt-center receipt-title">{restaurant.name}</div>
+        <div className="receipt-center">Prueba de impresión · papel de {settings.paper} mm</div>
+        <div className="receipt-center">{when}</div>
+        <div className="receipt-rule" />
+        <div className="receipt-big">Mesa 12</div>
+        <div className="receipt-kitchen-item">
+          <span className="receipt-qty">2</span>
+          <span><strong>Hamburguesa con queso</strong><span className="receipt-mod">· Sin cebolla</span></span>
+        </div>
+        <div className="receipt-row"><span>Línea completa de ancho</span><span>$ 99.999</span></div>
+        <div className="receipt-rule" />
+        <div className="receipt-center">Si se lee entero y no se corta a los costados, está bien configurada.</div>
+      </article>
     </div>
   )
 }

@@ -173,6 +173,16 @@ export function Mas() {
         </section>
 
         <section className="section">
+          <h2>Este equipo</h2>
+          <div className="list">
+            <button className="list-row" onClick={() => navigate('/impresora')}>
+              <span>Impresora</span>
+              <span className="muted">Ancho del papel e impresión automática de comandas</span>
+            </button>
+          </div>
+        </section>
+
+        <section className="section">
           <h2>Cuenta</h2>
           <div className="list">
             <div className="list-row">

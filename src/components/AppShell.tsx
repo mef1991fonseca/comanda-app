@@ -2,6 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useCurrentRestaurant } from '../lib/restaurant'
 import type { Enums } from '../lib/database.types'
 import { SyncBar } from './SyncBar'
+import { useKitchenAutoPrint } from '../lib/printer'
 import { IconCaja, IconCocina, IconComandas, IconInicio, IconMas, IconSalon } from './icons'
 
 type Role = Enums<'member_role'>
@@ -22,7 +23,9 @@ export function homeFor(role: Role) {
 }
 
 export function AppShell() {
-  const { role } = useCurrentRestaurant()
+  const { restaurant, role } = useCurrentRestaurant()
+  // Si este equipo es la impresora de cocina, imprime cada pedido nuevo
+  useKitchenAutoPrint(restaurant.id)
 
   return (
     <div className="shell">

@@ -1913,7 +1913,13 @@ a.btn {
 .receipt-qty { font-weight: 700; font-size: 18px; }
 /* El tamaño de 80 mm aplica solo a los tickets (página con nombre); facturas y QR salen en A4 */
 @page receipt { size: 80mm auto; margin: 3mm; }
+@page receipt58 { size: 58mm auto; margin: 1.5mm; }
 .receipt-page { page: receipt; }
+.receipt-page.paper-58 { page: receipt58; }
+.paper-58 .receipt { width: 210px; font-size: 12px; padding: 10px 6px; } /* 48 mm imprimibles */
+.paper-58 .receipt-big { font-size: 26px; }
+.paper-58 .receipt-kitchen-item { grid-template-columns: 22px 1fr; font-size: 14px; }
+.receipt-added { font-weight: 700; letter-spacing: 0.2em; border: 2px solid #000; margin-bottom: 6px; }
 @media print {
   .print-page { padding: 0; background: #fff; display: block; }
   .receipt { box-shadow: none; width: auto; padding: 0; }
@@ -2050,4 +2056,35 @@ a.btn {
   margin-right: 12px;
   font-size: 0.9375rem;
   flex-shrink: 0;
+}
+
+/* ---------- Impresora ---------- */
+.field-label {
+  font-weight: 600;
+}
+.station-picks {
+  border: 0;
+  padding: 0;
+  margin: 8px 0 0;
+  display: grid;
+  gap: 4px;
+}
+.station-picks legend {
+  margin-bottom: 4px;
+}
+.steps-list {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 10px;
+}
+.code-line {
+  display: block;
+  margin: 6px 0;
+  padding: 8px 10px;
+  background: #e6e9e7;
+  border-radius: var(--r-sm);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+  user-select: all;
 }

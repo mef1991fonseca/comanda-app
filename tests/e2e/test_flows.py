@@ -7,6 +7,7 @@ venta de mostrador → comandas abiertas → vista tablet → cerrar sesión.
 Uso:  npm run build && npx vite preview --port 4173 &   y luego   python3 tests/e2e/test_flows.py
 """
 import os
+import re
 import sys
 from playwright.sync_api import sync_playwright, expect
 from fake_supabase import FakeSupabase, EMAIL, PASSWORD, USER_ID
@@ -947,6 +948,55 @@ with sync_playwright() as p:
     page.goto(BASE + "/caja")
     page.get_by_role("group", name="Caja de este equipo").get_by_role("button", name="barra Cerrada").click()
     expect(page.locator(".list-row").filter(has_text="Esperado")).to_be_visible()
+
+    # ---------- Impresora de cocina: papel de 58 mm e impresión automática ----------
+    printed_urls = []
+    page.on("framenavigated", lambda fr: fr != page.main_frame and "/imprimir/" in fr.url and fr.url not in printed_urls and printed_urls.append(fr.url))
+    page.get_by_role("link", name="Más").click()
+    page.get_by_role("button", name="Impresora Ancho del papel e impresión automática de comandas").click()
+    page.get_by_role("group", name="Ancho del papel").get_by_role("button", name="58 mm").click()
+    page.get_by_label("Imprimir en este equipo cada pedido que se envía a cocina").click()
+    expect(page.get_by_label("Imprimir en este equipo cada pedido que se envía a cocina")).to_be_checked()
+    shot(page, "s16-01-impresora")
+    page.get_by_role("button", name="Imprimir prueba").click()
+    expect(page.get_by_role("button", name="Imprimir prueba")).to_be_enabled(timeout=15000)
+    assert any("/imprimir/prueba" in u for u in printed_urls), printed_urls
+    assert not any("/imprimir/cocina/" in u for u in printed_urls), "no debe reimprimir lo que ya estaba en cocina"
+
+    # un pedido nuevo sale solo por la impresora de este equipo
+    page.get_by_role("link", name="Salón").click()
+    page.get_by_role("button", name="Mesa 11, libre").click()
+    page.get_by_role("button", name="Abrir mesa y cargar pedido").click()
+    page.get_by_role("button", name="Bebidas").click()
+    page.get_by_role("button", name="Agua sin gas $ 2.000").click()
+    page.get_by_role("button", name="Ver pedido").click()
+    page.get_by_role("button", name="Enviar a cocina · $ 2.000").click()
+    for _ in range(40):
+        if any("/imprimir/cocina/" in u for u in printed_urls):
+            break
+        page.wait_for_timeout(500)
+    first = [u for u in printed_urls if "/imprimir/cocina/" in u]
+    assert len(first) == 1 and "items=" in first[0] and "embed=1" in first[0], printed_urls
+    # se agrega otro producto: sale un ticket con lo nuevo marcado como AGREGADO
+    page.get_by_role("button", name="Agua sin gas $ 2.000").click()
+    page.get_by_role("button", name="Ver pedido").click()
+    page.get_by_role("button", name="Enviar a cocina · $ 2.000").click()
+    for _ in range(40):
+        if len([u for u in printed_urls if "/imprimir/cocina/" in u]) >= 2:
+            break
+        page.wait_for_timeout(500)
+    kitchen = [u for u in printed_urls if "/imprimir/cocina/" in u]
+    assert len(kitchen) == 2 and kitchen[0] != kitchen[1], kitchen
+    preview = ctx.new_page()
+    preview.route("https://mosfrmkbutyqqckjnkkd.supabase.co/**", fake.handle)
+    preview.goto(kitchen[1].replace("&embed=1", "").replace("?embed=1", ""))
+    expect(preview.locator(".receipt")).to_contain_text("AGREGADO")
+    expect(preview.locator(".receipt")).to_contain_text("Mesa 11")
+    expect(preview.locator(".receipt-kitchen-item")).to_have_count(1)
+    expect(preview.locator(".print-page")).to_have_class(re.compile("paper-58"))
+    shot(preview, "s16-02-ticket-58mm")
+    preview.close()
+    page.get_by_role("link", name="Volver").click()
 
     page.get_by_role("link", name="Más").click()
     page.get_by_role("button", name="Cerrar sesión").click()

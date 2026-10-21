@@ -106,9 +106,15 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
   no anuladas por fecha del comprobante, sin mercadería ni bebidas porque van a stock y ya entran como costo),
   compras de mercadería y propinas informativas, y ventas sin receta. Resultado = ventas − costo − gastos, se calcula
   en el cliente. Pantalla `pages/Resultados.tsx` (Más → Estado de resultados).
-- **Impresión:** `/imprimir/precuenta/:id` y `/imprimir/cocina/:id` (`pages/Imprimir.tsx`), tickets de 80 mm con
-  la impresión del navegador (página con nombre `@page receipt`, clase `.receipt-page`; el resto imprime en A4). Sirve con cualquier impresora instalada en el equipo; la
-  impresión directa ESC/POS sin diálogo sigue pendiente.
+- **Impresión:** `/imprimir/precuenta/:id`, `/imprimir/cocina/:id` (`?items=` solo esos ítems, sale "AGREGADO" si ya
+  había otros enviados) y `/imprimir/prueba` (`pages/Imprimir.tsx`), con la impresión del navegador (páginas con nombre
+  `@page receipt` 80 mm y `receipt58` 58 mm; el resto imprime en A4). Configuración por equipo en `lib/printer.ts`
+  (localStorage): ancho de papel, `autoKitchen` y estaciones. Con `autoKitchen`, `useKitchenAutoPrint` (montado en
+  `AppShell`) escucha `order_items` por realtime + cada 15 s e imprime lo recién enviado en un iframe oculto
+  (`printInBackground`, `?embed=1`, avisa con postMessage); recuerda lo impreso (`comanda.printed.<local>`) y al
+  activarse da por impreso lo que ya estaba en cocina. Sin diálogo: Chrome/Edge abierto con `--kiosk-printing` y la
+  impresora como predeterminada (instrucciones en Más → Impresora, `pages/Impresora.tsx`). Windows no deja usar
+  WebUSB con impresoras que tienen driver, por eso no hay ESC/POS directo.
 - **Alta de local:** RPC `create_restaurant(nombre, mesas)` crea el local con dueño, estaciones Cocina/Barra,
   Caja principal, medios de pago y un salón con N mesas.
 - **Realtime** publicado en `orders`, `order_items`, `payments` (respeta RLS).
@@ -165,14 +171,14 @@ sonoro con Web Audio) · Caja (selector de caja del equipo, apertura, ingresos/r
 del producto incluye receta con costo y margen) · Stock (insumos, compra/merma/ajuste/conteo, historial,
 alertas de faltante) · Reportes (`components/BarChart.tsx`: una serie, un tono, tooltip y tabla) · Estado de resultados · Inicio
 (home de owner/manager: ventas de hoy, ahora, faltantes) · Equipo (personas, roles, links de invitación) ·
-Invitación (aceptar) · Más. Owner/manager tienen pestañas Inicio,
+Invitación (aceptar) · Impresora (por equipo) · Más. Owner/manager tienen pestañas Inicio,
 Salón, Comandas, Caja, Más; Cocina para ellos está en Más.
 
 ## Pendientes conocidos
 
 - Sin conexión no se cobra con Mercado Pago ni cuenta corriente, ni se factura (se factura después desde Comandas → Cerradas).
 - Caja: el arqueo ciego oculta en la interfaz; para que sea estricto habría que restringir por RLS la lectura de pagos del cajero.
-- Impresión directa ESC/POS (sin el diálogo del navegador) y salida automática a la impresora de cocina al enviar.
+- Impresión: ESC/POS directo (WebUSB/Bluetooth) para celulares Android; hoy la impresión automática necesita una PC con la app abierta.
 - Cantidades con decimales se escriben con coma (es-AR): `parseAmount` toma el punto como separador de miles.
 - Mercado Pago: hoy usa una sola cuenta (la de prueba de ALTech) para todos los locales. Para producción falta
   OAuth para que cada local vincule su cuenta, y cargar la dirección real del local en la sucursal de MP.

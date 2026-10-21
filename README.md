@@ -25,6 +25,7 @@ Nombre provisorio.
 | 15 | Varias cajas y arqueo ciego | Listo |
 | 16 | Cobrar sin conexión (efectivo, tarjeta, transferencia) | Listo |
 | 17 | Facturar comandas ya cerradas | Listo |
+| 18 | Impresión automática de comandas (58/80 mm, PC con Windows) | Listo |
 
 ## Correr el proyecto
 

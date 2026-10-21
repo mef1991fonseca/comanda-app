@@ -20,7 +20,8 @@ import { Stock } from './pages/Stock'
 import { Equipo } from './pages/Equipo'
 import { Facturacion } from './pages/Facturacion'
 import { Factura } from './pages/Factura'
-import { Imprimir } from './pages/Imprimir'
+import { Imprimir, PrintTest } from './pages/Imprimir'
+import { Impresora } from './pages/Impresora'
 import { Clientes, Cliente } from './pages/Clientes'
 import { Compras, CompraNueva, Proveedor } from './pages/Compras'
 import { PublicMenu } from './pages/PublicMenu'
@@ -60,6 +61,7 @@ export function App() {
       <Route path="/nuevo-local" element={<Onboarding first={false} />} />
       <Route path="/factura/:invoiceId" element={<Factura />} />
       <Route path="/imprimir/qr" element={<ImprimirQr />} />
+      <Route path="/imprimir/prueba" element={<PrintTest />} />
       <Route path="/imprimir/:kind/:orderId" element={<Imprimir />} />
       <Route element={<AppShell />}>
         <Route path="/salon" element={<Salon />} />
@@ -90,6 +92,7 @@ export function App() {
         <Route path="/cocina" element={<Cocina />} />
         <Route path="/caja" element={<Caja />} />
         <Route path="/mas" element={<Mas />} />
+        <Route path="/impresora" element={<Impresora />} />
       </Route>
       <Route path="*" element={<Navigate to={homeFor(current.role)} replace />} />
     </Routes>
