@@ -28,6 +28,7 @@ Nombre provisorio.
 | 18 | Impresión automática de comandas (58/80 mm, PC con Windows) | Listo |
 | 19 | Mercado Pago: cada local vincula su cuenta (OAuth) | Listo (falta cargar credenciales de la app) |
 | 20 | Local de demostración para mostrar la app | Listo |
+| 21 | Rediseño visual (Stitch): paleta terracota, Plus Jakarta Sans, barra lateral en PC y modo oscuro | Listo |
 
 ## Correr el proyecto
 

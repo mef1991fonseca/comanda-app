@@ -18,8 +18,7 @@
   },
   "homepage": "https://github.com/mef1991fonseca/comanda-app#readme",
   "dependencies": {
-    "@fontsource/barlow": "^5.3.0",
-    "@fontsource/barlow-condensed": "^5.3.0",
+    "@fontsource/plus-jakarta-sans": "^5.3.0",
     "@supabase/supabase-js": "^2.118.0",
     "idb-keyval": "^6.3.0",
     "qrcode": "^1.5.4",

@@ -161,9 +161,20 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
 
 ## Diseño
 
-Sistema en `src/styles.css`. Verde botella `--bottle` (marca, mesas ocupadas), mostaza `--mustard` (algo
-espera acción), tomate `--tomato` (demora/error), papel `--paper` solo para tickets/comandas.
-Barlow Condensed para números grandes (mesas, totales), Barlow para el resto. Objetivo táctil mínimo 48 px.
+Sistema en `src/styles.css` (basado en los diseños de Stitch "Fresh Gastro Modern" claro y "Neo-Bistro Dark").
+Todo color sale de variables en `:root`: `--primary` terracota (#ce461a; #ff5722 en oscuro: marca, botones
+principales, mesas ocupadas), `--primary-soft`/`--primary-ink` para fondos y texto suaves, `--success` (abierto,
+en línea, ticket de cocina fresco), `--mustard` (algo espera acción), `--tomato` (demora/error), `--paper` solo
+para tickets/comandas. `--bottle*` quedan como alias de `--primary*`. Tipografía Plus Jakarta Sans
+(`@fontsource/plus-jakarta-sans`, 400–800) para todo; números grandes con `--font-display`. Tarjetas 16 px con
+borde `--line` y `--shadow-1`; etiquetas de KPI en mayúsculas chicas. Objetivo táctil mínimo 48 px.
+**Tema:** claro/oscuro sigue al sistema; en Más → Este equipo → Apariencia se fija por equipo (`lib/theme.ts`,
+localStorage `comanda.theme`, atributo `data-theme` en `<html>` aplicado por un script en `index.html` antes de
+pintar). Los tokens oscuros están dos veces: bajo `prefers-color-scheme: dark` con `:root:not([data-theme='light'])`
+y bajo `:root[data-theme='dark']`; al agregar uno, ponerlo en los tres bloques. Impresión, tickets, factura y QR
+no usan el tema.
+**Navegación:** en celular, pestañas abajo; desde 900 px, barra lateral (`AppShell`: logo, local, secciones,
+estado de conexión y usuario). Nombre del producto: Comandá.
 Texto de interfaz: oraciones cortas, verbos concretos, sin disculpas en errores.
 
 ## Cómo trabajar

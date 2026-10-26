@@ -11,6 +11,7 @@ import type { Enums } from '../lib/database.types'
 import { TopBar } from '../components/AppShell'
 import { DemoBuilder } from '../components/DemoBuilder'
 import { deleteDemo } from '../lib/demo'
+import { useTheme, type ThemeChoice } from '../lib/theme'
 
 type Member = { user_id: string; role: Enums<'member_role'>; display_name: string | null; name: string | null }
 
@@ -64,7 +65,7 @@ export function Mas() {
   return (
     <>
       <TopBar title="Más" />
-      <div className="content">
+      <div className="content mas-grid">
         {error && <div className="notice notice-error" role="alert">{error}</div>}
 
         {(role === 'owner' || role === 'manager') && (
@@ -186,6 +187,7 @@ export function Mas() {
               <span>Impresora</span>
               <span className="muted">Ancho del papel e impresión automática de comandas</span>
             </button>
+            <AppearanceRow />
           </div>
         </section>
 
@@ -247,5 +249,27 @@ function DemoDelete({ restaurantId }: { restaurantId: string }) {
       )}
       {error && <div className="notice notice-error" role="alert">{error}</div>}
     </section>
+  )
+}
+
+const THEMES: { value: ThemeChoice; label: string }[] = [
+  { value: 'system', label: 'Sistema' },
+  { value: 'light', label: 'Claro' },
+  { value: 'dark', label: 'Oscuro' },
+]
+
+function AppearanceRow() {
+  const [theme, setTheme] = useTheme()
+  return (
+    <div className="list-row appearance-row">
+      <span>Apariencia</span>
+      <div className="switcher three" role="group" aria-label="Apariencia">
+        {THEMES.map((t) => (
+          <button key={t.value} type="button" aria-pressed={theme === t.value} onClick={() => setTheme(t.value)}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }

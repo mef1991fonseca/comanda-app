@@ -1031,6 +1031,32 @@ with sync_playwright() as p:
     expect(page.locator(".topbar .demo-chip")).to_have_count(0)
     assert not any(r.get("is_demo") for r in fake.db["restaurants"])
 
+    # ---------- Apariencia: claro y oscuro ----------
+    tour = [("Inicio", "inicio"), ("Salón", "salon"), ("Comandas", "comandas"), ("Caja", "caja"), ("Más", "mas")]
+    page.set_viewport_size({"width": 1280, "height": 820})
+    for label, slug in tour:
+        page.get_by_role("link", name=label, exact=True).click()
+        page.wait_for_timeout(600)
+        shot(page, f"s19-light-{slug}")
+    page.get_by_role("group", name="Apariencia").get_by_role("button", name="Oscuro").click()
+    expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+    for label, slug in tour:
+        page.get_by_role("link", name=label, exact=True).click()
+        page.wait_for_timeout(600)
+        shot(page, f"s19-dark-{slug}")
+    page.goto(BASE + "/cocina")
+    page.wait_for_timeout(800)
+    shot(page, "s19-dark-cocina")
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.get_by_role("link", name="Salón", exact=True).click()
+    page.wait_for_timeout(600)
+    shot(page, "s19-dark-salon-celular")
+    page.reload()
+    expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+    page.get_by_role("link", name="Más").click()
+    page.get_by_role("group", name="Apariencia").get_by_role("button", name="Sistema").click()
+    expect(page.locator("html")).not_to_have_attribute("data-theme", "dark")
+
     page.get_by_role("link", name="Más").click()
     page.get_by_role("button", name="Cerrar sesión").click()
     expect(page.get_by_label("Email")).to_be_visible()
