@@ -611,7 +611,7 @@ class FakeSupabase:
                                        "timezone": "America/Argentina/Buenos_Aires", "created_at": now_iso(),
                                        "updated_at": now_iso(), "legal_name": None, "cuit": None, "address": None,
                                        "phone": None, "created_by": USER_ID,
-                                       "menu_slug": None, "menu_public": False, "menu_note": None})
+                                       "menu_slug": None, "menu_public": False, "menu_note": None, "is_demo": False})
         self.db["restaurant_members"].append({"restaurant_id": rid, "user_id": USER_ID, "role": "owner",
                                               "display_name": None, "active": True})
         for i, name in enumerate(["Cocina", "Barra"]):
@@ -629,6 +629,33 @@ class FakeSupabase:
             self.db["tables"].append({"id": str(uuid.uuid4()), "restaurant_id": rid, "area_id": area, "name": str(i),
                                       "seats": 4, "sort_order": i, "active": True, "pos_x": 0, "pos_y": 0})
         return rid
+
+    def _create_demo(self):
+        if any(r.get("is_demo") and any(m["restaurant_id"] == r["id"] and m["user_id"] == USER_ID for m in self.db["restaurant_members"])
+               for r in self.db["restaurants"]):
+            raise BusinessError("Ya tenés un local de demostración. Borralo para crear otro.")
+        rid = self._create_restaurant({"p_name": "Bodegón La Esquina (demo)", "p_tables": 12})
+        r = self._find("restaurants", rid)
+        r.update({"is_demo": True, "address": "Av. Corrientes 1234, CABA"})
+        cat = str(uuid.uuid4())
+        self.db["categories"].append({"id": cat, "restaurant_id": rid, "name": "Principales", "sort_order": 0, "active": True,
+                                      "parent_id": None, "created_at": now_iso()})
+        cocina = next(x["id"] for x in self.db["stations"] if x["restaurant_id"] == rid and x["name"] == "Cocina")
+        for i, (name, price) in enumerate([("Milanesa napolitana", 14500), ("Bife de chorizo", 18900)]):
+            self.db["products"].append({"id": str(uuid.uuid4()), "restaurant_id": rid, "category_id": cat, "station_id": cocina,
+                                        "name": name, "description": None, "price": price, "sku": None, "image_url": None,
+                                        "is_favorite": True, "sort_order": i, "active": True, "created_at": now_iso()})
+        self.demo_days = 0
+        return rid
+
+    def _delete_demo(self, rid):
+        r = self._find("restaurants", rid)
+        if not r or not r.get("is_demo"):
+            raise BusinessError("Solo el dueño de un local de demostración puede hacer esto")
+        for table, rows in self.db.items():
+            if isinstance(rows, list) and table != "restaurants":
+                self.db[table] = [x for x in rows if not (isinstance(x, dict) and x.get("restaurant_id") == rid)]
+        self.db["restaurants"] = [x for x in self.db["restaurants"] if x["id"] != rid]
 
     # ---------- handler ----------
     def handle(self, route):
@@ -665,6 +692,21 @@ class FakeSupabase:
         if path == "/auth/v1/logout":
             return reply(204)
 
+        if path in ("/rest/v1/rpc/create_demo_restaurant", "/rest/v1/rpc/demo_fill_day", "/rest/v1/rpc/demo_finish",
+                    "/rest/v1/rpc/delete_demo_restaurant"):
+            a = json.loads(req.post_data or "{}")
+            try:
+                if path.endswith("create_demo_restaurant"):
+                    return reply(200, self._create_demo())
+                if path.endswith("demo_fill_day"):
+                    self.demo_days = getattr(self, "demo_days", 0) + 1
+                    return reply(200, 20)
+                if path.endswith("demo_finish"):
+                    return reply(204, None)
+                self._delete_demo(a["p_restaurant"])
+                return reply(204, None)
+            except BusinessError as e:
+                return reply(400, {"code": "P0001", "message": str(e)})
         if path == "/rest/v1/rpc/create_restaurant":
             return reply(200, self._create_restaurant(json.loads(req.post_data or "{}")))
         if path == "/rest/v1/rpc/set_public_menu":

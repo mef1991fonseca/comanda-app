@@ -9,6 +9,8 @@ import { useCurrentRestaurant, useRestaurant } from '../lib/restaurant'
 import { roleLabel } from '../lib/format'
 import type { Enums } from '../lib/database.types'
 import { TopBar } from '../components/AppShell'
+import { DemoBuilder } from '../components/DemoBuilder'
+import { deleteDemo } from '../lib/demo'
 
 type Member = { user_id: string; role: Enums<'member_role'>; display_name: string | null; name: string | null }
 
@@ -171,8 +173,11 @@ export function Mas() {
             <button className="list-row" onClick={() => navigate('/nuevo-local')}>
               <span style={{ color: 'var(--bottle)', fontWeight: 600 }}>Crear otro local</span>
             </button>
+            {!memberships.some((m) => m.restaurant.is_demo) && <DemoBuilder />}
           </div>
         </section>
+
+        {restaurant.is_demo && role === 'owner' && <DemoDelete restaurantId={restaurant.id} />}
 
         <section className="section">
           <h2>Este equipo</h2>
@@ -197,5 +202,50 @@ export function Mas() {
         </section>
       </div>
     </>
+  )
+}
+
+/** Borrar el local de demostración (con confirmación). Vuelve al otro local, si hay. */
+function DemoDelete({ restaurantId }: { restaurantId: string }) {
+  const { memberships, select, reload } = useRestaurant()
+  const navigate = useNavigate()
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function remove() {
+    setBusy(true)
+    const err = await deleteDemo(restaurantId)
+    if (err) {
+      setBusy(false)
+      return setError(err)
+    }
+    const other = memberships.find((m) => m.restaurant.id !== restaurantId)
+    if (other) select(other.restaurant.id)
+    await reload()
+    navigate('/', { replace: true })
+  }
+
+  return (
+    <section className="section">
+      <h2>Demostración</h2>
+      <p className="muted">Este local es de demostración: los datos son inventados y no se mezclan con tus otros locales.</p>
+      {confirming ? (
+        <div className="notice notice-warn">
+          <p style={{ margin: '0 0 10px' }}>Se borra el local con todas sus ventas, cajas, stock y clientes de prueba.</p>
+          <div className="sheet-actions">
+            <button className="btn btn-primary" disabled={busy} onClick={() => void remove()}>
+              {busy ? 'Borrando…' : 'Borrar la demo'}
+            </button>
+            <button className="btn btn-quiet" onClick={() => setConfirming(false)}>Cancelar</button>
+          </div>
+        </div>
+      ) : (
+        <div className="sheet-actions">
+          <button className="btn btn-quiet" onClick={() => setConfirming(true)}>Borrar el local de demostración</button>
+        </div>
+      )}
+      {error && <div className="notice notice-error" role="alert">{error}</div>}
+    </section>
   )
 }

@@ -1015,6 +1015,21 @@ with sync_playwright() as p:
     preview.close()
     page.get_by_role("link", name="Volver").click()
 
+    # ---------- Local de demostración ----------
+    page.get_by_role("link", name="Más").click()
+    page.get_by_role("button", name="Crear local de demostración", exact=False).click()
+    expect(page.locator(".topbar .demo-chip")).to_have_text("Demo", timeout=20000)
+    expect(page.locator(".topbar .place")).to_contain_text("Bodegón La Esquina (demo)")
+    assert fake.demo_days == 24, fake.demo_days
+    shot(page, "s18-01-demo-inicio")
+    page.get_by_role("link", name="Más").click()
+    expect(page.get_by_role("button", name="Crear local de demostración", exact=False)).to_have_count(0)
+    page.get_by_role("button", name="Borrar el local de demostración").click()
+    page.get_by_role("button", name="Borrar la demo").click()
+    expect(page.locator(".topbar .place")).to_contain_text("Bodegón QA", timeout=15000)
+    expect(page.locator(".topbar .demo-chip")).to_have_count(0)
+    assert not any(r.get("is_demo") for r in fake.db["restaurants"])
+
     page.get_by_role("link", name="Más").click()
     page.get_by_role("button", name="Cerrar sesión").click()
     expect(page.get_by_label("Email")).to_be_visible()

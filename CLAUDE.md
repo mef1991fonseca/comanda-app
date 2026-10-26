@@ -125,6 +125,17 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
   WebUSB con impresoras que tienen driver, por eso no hay ESC/POS directo.
 - **Alta de local:** RPC `create_restaurant(nombre, mesas)` crea el local con dueño, estaciones Cocina/Barra,
   Caja principal, medios de pago y un salón con N mesas.
+- **Local de demostración** (`restaurants.is_demo`, uno por usuario): `create_demo_restaurant()` arma "Bodegón La
+  Esquina (demo)" (carta con recetas y modificadores, insumos con stock, clientes con cuenta, proveedores, compras
+  semanales y gastos fijos del mes, carta QR publicada); `demo_fill_day(local, días)` carga las ventas cerradas de un
+  día con su caja (lunes cerrado, más los viernes y sábados); `demo_finish(local)` abre la caja de hoy, ocupa mesas en
+  distintos estados de cocina y deja tres faltantes de stock. Todo pasa por las reglas normales; solo se ajustan
+  fechas (cierre de comanda con `closed_at` dado, caja con la bandera `comanda.cash_close`). La app llama un día por
+  vez (`lib/demo.ts`, `components/DemoBuilder.tsx` con barra de avance) porque `authenticated` corta a los 8 s.
+  `delete_demo_restaurant` borra en orden (pagos y cajas no van en cascada). Entradas: Onboarding ("Probar con un
+  local de demostración") y Más → Locales; en la demo, chip "Demo" en la barra y Más → Demostración para borrarla.
+  Helpers en `private.demo_*`. El conector de Supabase rechaza algunas migraciones grandes o con muchos `delete`:
+  partirlas.
 - **Realtime** publicado en `orders`, `order_items`, `payments` (respeta RLS).
 - **Modo sin conexión** (`src/lib/offline.ts`, IndexedDB con idb-keyval):
   - Lecturas con `cachedQuery(clave, tabla, filtros, consulta)`: con red consulta y guarda; sin red devuelve

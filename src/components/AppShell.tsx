@@ -50,7 +50,10 @@ export function TopBar({ title }: { title: string }) {
   return (
     <header className="topbar">
       <h1>{title}</h1>
-      <span className="place">{restaurant.name}</span>
+      <span className="place">
+        {restaurant.is_demo && <span className="demo-chip">Demo</span>}
+        {restaurant.name}
+      </span>
     </header>
   )
 }

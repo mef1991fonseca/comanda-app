@@ -180,7 +180,7 @@ export type Database = {
         Relationships: []
       }
       restaurants: {
-        Row: { address: string | null; created_at: Ts; created_by: string | null; cuit: string | null; currency: string; id: string; legal_name: string | null; menu_note: string | null; menu_public: boolean; menu_slug: string | null; name: string; phone: string | null; timezone: string; updated_at: Ts }
+        Row: { address: string | null; created_at: Ts; created_by: string | null; cuit: string | null; currency: string; id: string; is_demo: boolean; legal_name: string | null; menu_note: string | null; menu_public: boolean; menu_slug: string | null; name: string; phone: string | null; timezone: string; updated_at: Ts }
         Insert: { address?: string | null; created_at?: Ts; created_by?: string | null; cuit?: string | null; currency?: string; id?: string; legal_name?: string | null; name: string; phone?: string | null; timezone?: string; updated_at?: Ts }
         Update: Partial<Database['public']['Tables']['restaurants']['Insert']>
         Relationships: []
@@ -258,6 +258,22 @@ export type Database = {
       create_restaurant: {
         Args: { p_name: string; p_tables?: number }
         Returns: string
+      }
+      create_demo_restaurant: {
+        Args: Record<string, never>
+        Returns: string
+      }
+      demo_fill_day: {
+        Args: { p_restaurant: string; p_days_ago: number }
+        Returns: number
+      }
+      demo_finish: {
+        Args: { p_restaurant: string }
+        Returns: undefined
+      }
+      delete_demo_restaurant: {
+        Args: { p_restaurant: string }
+        Returns: undefined
       }
       income_statement: {
         Args: { p_restaurant: string; p_months?: number }

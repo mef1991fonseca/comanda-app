@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { DemoBuilder } from '../components/DemoBuilder'
 import { supabase, errorMessage } from '../lib/supabase'
 import { useRestaurant } from '../lib/restaurant'
 
@@ -58,6 +59,12 @@ export function Onboarding({ first = true }: { first?: boolean }) {
         <button className="btn btn-primary btn-block" disabled={busy}>
           Crear local
         </button>
+        {first && (
+          <div className="demo-entry">
+            <span className="muted">¿Querés verla funcionando primero?</span>
+            <DemoBuilder variant="block" />
+          </div>
+        )}
         {!first && (
           <button type="button" className="btn btn-quiet btn-block" onClick={() => navigate(-1)}>
             Volver

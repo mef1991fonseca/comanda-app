@@ -2088,3 +2088,41 @@ a.btn {
   overflow-wrap: anywhere;
   user-select: all;
 }
+
+/* ---------- Local de demostración ---------- */
+.demo-chip {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--mustard-soft);
+  color: #6b4a06;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+.demo-progress {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+}
+.demo-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: #e6e9e7;
+  overflow: hidden;
+}
+.demo-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--bottle);
+  transition: width 0.3s ease;
+}
+.demo-entry {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  text-align: center;
+}
