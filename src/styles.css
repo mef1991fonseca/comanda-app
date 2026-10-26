@@ -376,6 +376,11 @@ p {
   color: #8a968e;
 }
 .table-tile .meta {
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 0.8125rem;
   line-height: 1.25;
   min-height: 2.5em;
@@ -2045,11 +2050,14 @@ a.btn {
   gap: 12px;
   background: none;
   border: 0;
-  padding: 14px 0 14px 16px;
+  padding: 14px 16px;
   text-align: left;
   font: inherit;
   color: inherit;
   cursor: pointer;
+}
+.closed-main:not(:last-child) {
+  padding-right: 0;
 }
 .btn-small {
   padding: 0 14px;

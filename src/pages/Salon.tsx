@@ -189,7 +189,7 @@ export function Salon() {
                         <>
                           <strong>{order.total > 0 ? formatMoney(order.total) : 'Sin pedidos'}</strong>
                           <br />
-                          {toServe ? 'Listo para servir' : toSend ? 'Sin enviar' : formatElapsed(minutesSince(order.opened_at, now))}
+                          {toServe ? 'Para servir' : toSend ? 'Sin enviar' : formatElapsed(minutesSince(order.opened_at, now))}
 
                         </>
                       ) : (
