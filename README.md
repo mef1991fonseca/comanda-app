@@ -29,6 +29,7 @@ Nombre provisorio.
 | 19 | Mercado Pago: cada local vincula su cuenta (OAuth) | Listo (falta cargar credenciales de la app) |
 | 20 | Local de demostración para mostrar la app | Listo |
 | 21 | Rediseño visual (Stitch): paleta terracota, Plus Jakarta Sans, barra lateral en PC y modo oscuro | Listo |
+| 22 | Pedidos desde la carta QR (el cliente pide, el salón acepta y va a cocina) | Listo |
 
 ## Correr el proyecto
 

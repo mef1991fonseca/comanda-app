@@ -20,7 +20,7 @@ TABLES = [
     "categories", "products", "modifier_groups", "modifiers", "product_modifier_groups",
     "orders", "order_items", "payments", "payment_methods", "registers", "cash_sessions", "cash_movements",
     "ingredients", "recipe_items", "stock_movements", "restaurant_invites", "mp_charges", "fiscal_settings", "invoices", "customers", "customer_movements", "customer_balances",
-    "suppliers", "purchases", "purchase_items", "supplier_movements", "supplier_balances",
+    "suppliers", "purchases", "purchase_items", "supplier_movements", "supplier_balances", "menu_orders",
 ]
 
 DEFAULTS = {
@@ -605,13 +605,78 @@ class FakeSupabase:
         inv.update({"accepted_at": now_iso(), "accepted_by": USER_ID})
         return inv["restaurant_id"]
 
+    def _menu_order_rpc(self, name, a):
+        if name == "set_menu_ordering":
+            self._find("restaurants", a["p_restaurant"])["menu_ordering"] = bool(a["p_enabled"])
+            return 204, None
+        if name == "public_menu_order":
+            r = next((x for x in self.db["restaurants"] if x.get("menu_slug") == a["p_slug"].lower()
+                      and x.get("menu_public") and x.get("menu_ordering")), None)
+            if not r:
+                raise BusinessError("Esta carta no recibe pedidos. Pedile al mozo.")
+            t = next((t for t in self.db["tables"] if t["restaurant_id"] == r["id"] and t["active"]
+                      and t["name"].lower() == (a.get("p_table") or "").strip().lower()), None)
+            if not t:
+                raise BusinessError("No encontramos esa mesa. Pedile al mozo.")
+            lines, total = [], 0
+            for it in a["p_items"]:
+                p = self._find("products", it["product_id"])
+                if not p or not p["active"]:
+                    raise BusinessError("Uno de los platos ya no está disponible. Actualizá la carta.")
+                ids = [m["id"] for m in it.get("modifiers") or []]
+                mods = [self._find("modifiers", i) for i in ids]
+                for l in self.db["product_modifier_groups"]:
+                    if l["product_id"] == p["id"]:
+                        g = self._find("modifier_groups", l["group_id"])
+                        avail = [m for m in self.db["modifiers"] if m["group_id"] == g["id"] and m["active"]]
+                        n = sum(1 for m in mods if m["group_id"] == g["id"])
+                        if n < min(g["min_select"], len(avail)):
+                            raise BusinessError(f"Elegí una opción de {g['name']} ({p['name']})")
+                unit = p["price"] + sum(m["price_delta"] for m in mods)
+                lines.append({"product_id": p["id"], "name": p["name"], "quantity": it["quantity"], "unit_price": unit,
+                              "modifiers": [{"id": m["id"], "name": m["name"], "price_delta": m["price_delta"]} for m in mods],
+                              "notes": it.get("notes")})
+                total += unit * it["quantity"]
+            mo = {"id": str(uuid.uuid4()), "restaurant_id": r["id"], "table_id": t["id"],
+                  "customer_name": (a.get("p_name") or "").strip() or None, "note": (a.get("p_note") or "").strip() or None,
+                  "items": lines, "total": total, "status": "pending", "order_id": None, "reject_reason": None,
+                  "handled_by": None, "handled_at": None, "created_at": now_iso()}
+            self.db["menu_orders"].append(mo)
+            return 200, {"id": mo["id"], "total": total}
+        mo = self._find("menu_orders", a["p_id"])
+        if name == "public_menu_order_status":
+            return 200, {k: mo[k] for k in ("status", "reject_reason", "total", "created_at", "handled_at")} if mo else None
+        if mo["status"] != "pending":
+            raise BusinessError("Este pedido ya lo atendió otra persona")
+        mo.update({"handled_by": USER_ID, "handled_at": now_iso()})
+        if name == "reject_menu_order":
+            mo.update({"status": "rejected", "reject_reason": (a.get("p_reason") or "").strip() or None})
+            return 204, None
+        order = next((o for o in self.db["orders"] if o["table_id"] == mo["table_id"] and o["status"] == "open"), None)
+        if not order:
+            order = {"restaurant_id": mo["restaurant_id"], "type": "dine_in", "table_id": mo["table_id"],
+                     "customer_name": mo["customer_name"]}
+            self._before_insert("orders", order)
+            self.db["orders"].append(order)
+        if mo["note"]:
+            order["notes"] = " · ".join(x for x in [order.get("notes"), "Carta QR: " + mo["note"]] if x)
+        for l in mo["items"]:
+            item = {"restaurant_id": mo["restaurant_id"], "order_id": order["id"], "product_id": l["product_id"],
+                    "name": l["name"], "unit_price": 0, "quantity": l["quantity"],
+                    "modifiers": [{"id": m["id"]} for m in l["modifiers"]], "notes": l["notes"], "status": "sent"}
+            self._before_insert("order_items", item)
+            self.db["order_items"].append(item)
+            self._after_write("order_items", item)
+        mo.update({"status": "accepted", "order_id": order["id"]})
+        return 200, order["id"]
+
     def _create_restaurant(self, args):
         rid = str(uuid.uuid4())
         self.db["restaurants"].append({"id": rid, "name": args["p_name"].strip(), "currency": "ARS",
                                        "timezone": "America/Argentina/Buenos_Aires", "created_at": now_iso(),
                                        "updated_at": now_iso(), "legal_name": None, "cuit": None, "address": None,
                                        "phone": None, "created_by": USER_ID,
-                                       "menu_slug": None, "menu_public": False, "menu_note": None, "is_demo": False})
+                                       "menu_slug": None, "menu_public": False, "menu_note": None, "menu_ordering": False, "is_demo": False})
         self.db["restaurant_members"].append({"restaurant_id": rid, "user_id": USER_ID, "role": "owner",
                                               "display_name": None, "active": True})
         for i, name in enumerate(["Cocina", "Barra"]):
@@ -729,16 +794,24 @@ class FakeSupabase:
                 for l in self.db["product_modifier_groups"]:
                     if l["product_id"] == pid:
                         g = self._find("modifier_groups", l["group_id"])
-                        out.append({"group": g["name"], "choices": [{"name": m["name"], "price_delta": m["price_delta"]}
+                        out.append({"id": g["id"], "group": g["name"], "min": g["min_select"], "max": g["max_select"],
+                                    "choices": [{"id": m["id"], "name": m["name"], "price_delta": m["price_delta"]}
                                     for m in self.db["modifiers"] if m["group_id"] == g["id"] and m["active"]]})
                 return out
             return reply(200, {
                 "restaurant": {"name": r["name"], "address": r.get("address"), "phone": r.get("phone"), "note": r.get("menu_note")},
+                "ordering": bool(r.get("menu_ordering")),
                 "categories": [{"id": c["id"], "name": c["name"]} for c in self.db["categories"]
                                if c["restaurant_id"] == r["id"] and c["active"] and any(p["category_id"] == c["id"] for p in prods)],
                 "products": [{"id": p["id"], "name": p["name"], "description": p.get("description"), "price": p["price"],
                               "category_id": p.get("category_id"), "favorite": p.get("is_favorite"), "image_url": None,
                               "options": options(p["id"])} for p in prods]})
+        if path.startswith("/rest/v1/rpc/") and path.rsplit("/", 1)[1] in (
+                "set_menu_ordering", "public_menu_order", "public_menu_order_status", "accept_menu_order", "reject_menu_order"):
+            try:
+                return reply(*self._menu_order_rpc(path.rsplit("/", 1)[1], json.loads(req.post_data or "{}")))
+            except BusinessError as e:
+                return reply(400, {"code": "P0001", "message": str(e)})
         if path == "/rest/v1/rpc/register_purchase":
             p = json.loads(req.post_data or "{}")["p_purchase"]
             sup = self._find("suppliers", p["supplier_id"])

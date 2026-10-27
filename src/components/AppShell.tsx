@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useCurrentRestaurant } from '../lib/restaurant'
 import { useAuth } from '../lib/auth'
@@ -7,6 +7,8 @@ import { roleLabel } from '../lib/format'
 import type { Enums } from '../lib/database.types'
 import { SyncBar } from './SyncBar'
 import { useKitchenAutoPrint } from '../lib/printer'
+import { MenuOrdersBar, MenuOrdersContext } from './MenuOrders'
+import { usePendingMenuOrders } from '../lib/menuOrders'
 import { IconCaja, IconCocina, IconComandas, IconInicio, IconMas, IconSalon } from './icons'
 
 type Role = Enums<'member_role'>
@@ -30,10 +32,22 @@ export function AppShell() {
   const { restaurant, role } = useCurrentRestaurant()
   // Si este equipo es la impresora de cocina, imprime cada pedido nuevo
   useKitchenAutoPrint(restaurant.id)
+  // Pedidos que mandan los clientes desde la carta QR
+  const takesOrders = restaurant.menu_ordering && role !== 'kitchen'
+  const { orders: menuOrders, reload: reloadMenuOrders } = usePendingMenuOrders(restaurant.id, takesOrders)
+  const [menuOrdersOpen, setMenuOrdersOpen] = useState(false)
+  const qr = useMemo(() => ({ orders: menuOrders, openList: () => setMenuOrdersOpen(true) }), [menuOrders])
 
   return (
+    <MenuOrdersContext.Provider value={qr}>
     <div className="shell">
       <SyncBar />
+      <MenuOrdersBar
+        orders={menuOrders}
+        open={menuOrdersOpen}
+        setOpen={setMenuOrdersOpen}
+        onChanged={() => void reloadMenuOrders()}
+      />
       <Outlet />
       <nav className="tabbar" aria-label="Secciones">
         <div className="side-head">
@@ -53,11 +67,17 @@ export function AppShell() {
             <NavLink key={to} to={to}>
               <Icon />
               <span>{label}</span>
+              {to === '/salon' && menuOrders.length > 0 && (
+                <span className="nav-badge" aria-label={`${menuOrders.length} pedidos de la carta`}>
+                  {menuOrders.length}
+                </span>
+              )}
             </NavLink>
           ))}
         <SideFoot role={role} />
       </nav>
     </div>
+    </MenuOrdersContext.Provider>
   )
 }
 

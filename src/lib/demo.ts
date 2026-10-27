@@ -23,6 +23,8 @@ export async function buildDemo(onProgress: (p: DemoProgress) => void): Promise<
   onProgress({ step: total - 1, total, label: 'Abriendo la caja y ocupando mesas…' })
   const fin = await supabase.rpc('demo_finish', { p_restaurant: id })
   if (fin.error) return { id, error: errorMessage(fin.error) }
+  // En la demo la carta QR ya toma pedidos, para poder mostrarlo
+  await supabase.rpc('set_menu_ordering', { p_restaurant: id, p_enabled: true })
   onProgress({ step: total, total, label: 'Listo' })
   return { id, error: null }
 }

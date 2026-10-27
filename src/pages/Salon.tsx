@@ -1,3 +1,4 @@
+import { usePendingQr } from '../components/MenuOrders'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, errorMessage } from '../lib/supabase'
 import { cachedQuery } from '../lib/offline'
@@ -29,6 +30,7 @@ function useNow(intervalMs = 30_000) {
 export function Salon() {
   const { restaurant, role } = useCurrentRestaurant()
   const rid = restaurant.id
+  const qr = usePendingQr()
   const [areas, setAreas] = useState<Area[]>([])
   const [tables, setTables] = useState<Table[]>([])
   const [orders, setOrders] = useState<Order[]>([])
@@ -169,14 +171,15 @@ export function Salon() {
             <div className="floor">
               {visible.map((t) => {
                 const order = orderByTable.get(t.id)
+                const qrCount = qr.orders.filter((m) => m.table_id === t.id).length
                 const toSend = order ? waiting.has(order.id) : false
                 const toServe = order ? readyOrders.has(order.id) : false
                 return (
                   <button
                     key={t.id}
-                    className={`table-tile${order ? ' busy' : ''}${toSend || toServe ? ' waiting' : ''}`}
-                    onClick={() => setSelected(t)}
-                    aria-label={`Mesa ${t.name}, ${order ? 'ocupada' : 'libre'}${toServe ? ', con platos listos' : toSend ? ', con pedido sin enviar' : ''}${order && nameOf(order.waiter_id) ? `, mozo ${nameOf(order.waiter_id)}` : ''}`}
+                    className={`table-tile${order ? ' busy' : ''}${toSend || toServe || qrCount ? ' waiting' : ''}`}
+                    onClick={() => (qrCount ? qr.openList() : setSelected(t))}
+                    aria-label={`Mesa ${t.name}, ${order ? 'ocupada' : 'libre'}${qrCount ? ', con pedido de la carta QR' : ''}${toServe ? ', con platos listos' : toSend ? ', con pedido sin enviar' : ''}${order && nameOf(order.waiter_id) ? `, mozo ${nameOf(order.waiter_id)}` : ''}`}
                   >
                     <span className="num">{t.name}</span>
                     {order && nameOf(order.waiter_id) && (
@@ -189,9 +192,11 @@ export function Salon() {
                         <>
                           <strong>{order.total > 0 ? formatMoney(order.total) : 'Sin pedidos'}</strong>
                           <br />
-                          {toServe ? 'Para servir' : toSend ? 'Sin enviar' : formatElapsed(minutesSince(order.opened_at, now))}
+                          {qrCount ? 'Pedido QR' : toServe ? 'Para servir' : toSend ? 'Sin enviar' : formatElapsed(minutesSince(order.opened_at, now))}
 
                         </>
+                      ) : qrCount ? (
+                        <strong className="tile-qr">Pedido QR</strong>
                       ) : (
                         `${t.seats} lugares`
                       )}

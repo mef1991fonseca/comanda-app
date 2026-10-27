@@ -86,6 +86,8 @@ export function CartaQr() {
           )}
         </div>
 
+        {live && <OrderingToggle />}
+
         {live && (
           <section className="section qr-share">
             <h2>Tu carta</h2>
@@ -104,6 +106,47 @@ export function CartaQr() {
         )}
       </div>
     </>
+  )
+}
+
+/** Encender o pausar los pedidos que mandan los clientes desde la carta. */
+function OrderingToggle() {
+  const { restaurant } = useCurrentRestaurant()
+  const { reload } = useRestaurant()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const on = restaurant.menu_ordering
+
+  async function toggle() {
+    setBusy(true)
+    setError(null)
+    const { error } = await supabase.rpc('set_menu_ordering', { p_restaurant: restaurant.id, p_enabled: !on })
+    setBusy(false)
+    if (error) return setError(errorMessage(error))
+    await reload()
+  }
+
+  return (
+    <section className="section">
+      <h2>Pedidos desde la mesa</h2>
+      <div className="list">
+        <div className="list-row">
+          <span>
+            <span className="row-title">Los clientes piden desde la carta</span>
+            <span className="muted row-sub">
+              {on
+                ? 'Cada pedido le aparece al salón para aceptarlo. Al aceptarlo se suma a la comanda de la mesa y va a cocina.'
+                : 'Hoy la carta es solo para mirar. Activalo para que también puedan pedir desde la mesa.'}
+            </span>
+          </span>
+          <button className={on ? 'btn btn-quiet' : 'btn btn-primary'} disabled={busy} onClick={() => void toggle()}>
+            {on ? 'Pausar pedidos' : 'Activar pedidos'}
+          </button>
+        </div>
+      </div>
+      {on && <p className="muted">Solo se puede pedir con el QR de una mesa. El QR general sigue siendo para mirar la carta.</p>}
+      {error && <div className="notice notice-error" role="alert">{error}</div>}
+    </section>
   )
 }
 

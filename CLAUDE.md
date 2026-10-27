@@ -109,6 +109,17 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
   `public_menu(slug)` (única puerta para `anon`: nombre, descripción, precio y opciones de productos activos; nada
   de costos ni stock). Ruta pública `/m/:slug?mesa=N` (`pages/PublicMenu.tsx`), que `App` atiende antes del login.
   Pantallas: Más → Carta QR (`/carta/qr`) e `/imprimir/qr` (un QR por mesa + uno general).
+- **Pedidos desde la carta QR:** `restaurants.menu_ordering` (RPC `set_menu_ordering`, owner/manager; la demo lo
+  activa). Solo con el QR de una mesa (`?mesa=<nombre de la mesa>`). El cliente arma el pedido (carrito en
+  localStorage `comanda.cart.<slug>.<mesa>`) y lo manda con `public_menu_order(slug, mesa, items, nombre, nota)` (anon):
+  `private.menu_line` resuelve cada renglón con las mismas reglas que `order_items_enrich` (precio del servidor,
+  opciones del producto, mínimos/máximos) y queda en `menu_orders` 'pending' (máximo 3 esperando por mesa en 30 min y
+  40 por local en 10 min). Sigue el estado con `public_menu_order_status(id)` cada 5 s. El salón (owner, manager,
+  cashier, waiter) los ve por realtime + cada 15 s (`usePendingMenuOrders` en `AppShell`, `components/MenuOrders.tsx`):
+  aviso mostaza fijo (oculto en la comanda y en cocina), número en la pestaña Salón y la mesa marcada "Pedido QR".
+  `accept_menu_order` suma los ítems a la comanda abierta de la mesa (o abre una, con el que acepta como mozo), los
+  manda a cocina ('sent') y agrega la nota del cliente a `orders.notes`; `reject_menu_order(id, motivo)`. El cliente
+  nunca escribe en `orders`/`order_items`. `public_menu` devuelve `ordering` y los ids/min/max de las opciones.
 - **Estado de resultados:** RPC `income_statement(local, meses)` (owner/manager, security invoker, meses en la zona del
   local): ventas de comandas cerradas, costo de lo vendido con el costo guardado al cerrar, gastos por categoría (compras
   no anuladas por fecha del comprobante, sin mercadería ni bebidas porque van a stock y ya entran como costo),
@@ -136,7 +147,7 @@ El usuario escribe en español rioplatense: responder igual. Todo texto de inter
   local de demostración") y Más → Locales; en la demo, chip "Demo" en la barra y Más → Demostración para borrarla.
   Helpers en `private.demo_*`. El conector de Supabase rechaza algunas migraciones grandes o con muchos `delete`:
   partirlas.
-- **Realtime** publicado en `orders`, `order_items`, `payments` (respeta RLS).
+- **Realtime** publicado en `orders`, `order_items`, `payments`, `mp_charges` y `menu_orders` (respeta RLS).
 - **Modo sin conexión** (`src/lib/offline.ts`, IndexedDB con idb-keyval):
   - Lecturas con `cachedQuery(clave, tabla, filtros, consulta)`: con red consulta y guarda; sin red devuelve
     la caché + los cambios pendientes superpuestos (`overlay`, incluye deltas de totales de comanda).

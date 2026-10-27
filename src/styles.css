@@ -2463,3 +2463,228 @@ a.btn {
     color: #0f172a;
   }
 }
+
+/* ---------- Pedidos desde la carta QR ---------- */
+.menu-orders-bar {
+  position: fixed;
+  z-index: 15;
+  right: 12px;
+  left: 12px;
+  bottom: calc(var(--nav-h) + var(--safe-b) + 12px);
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--mustard);
+  color: #1c1400;
+  font: inherit;
+  font-size: 1rem;
+  text-align: left;
+  box-shadow: var(--shadow-3);
+  cursor: pointer;
+}
+.menu-orders-bar span:nth-child(2) {
+  flex: 1;
+}
+.menu-orders-bar .go {
+  font-weight: 700;
+}
+.menu-orders-bar .pulse {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #1c1400;
+  animation: mo-pulse 1.4s ease-in-out infinite;
+}
+@keyframes mo-pulse {
+  50% { opacity: 0.25; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .menu-orders-bar .pulse { animation: none; }
+}
+@media (min-width: 900px) {
+  .menu-orders-bar {
+    left: auto;
+    right: 24px;
+    bottom: 24px;
+    min-width: 320px;
+  }
+}
+.nav-badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--mustard);
+  color: #1c1400;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: inline-grid;
+  place-items: center;
+  line-height: 1;
+}
+.tabbar a {
+  position: relative;
+}
+.tabbar .nav-badge {
+  position: absolute;
+  top: 6px;
+  left: calc(50% + 6px);
+}
+@media (min-width: 900px) {
+  .tabbar .nav-badge {
+    position: static;
+    margin-left: auto;
+  }
+}
+.mo-card {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  box-shadow: var(--shadow-1);
+  padding: 14px 16px;
+  display: grid;
+  gap: 10px;
+}
+.mo-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.mo-table {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.375rem;
+}
+.mo-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.mo-items li {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: 8px;
+  align-items: baseline;
+}
+.mo-items .qty {
+  font-weight: 800;
+}
+.mo-note {
+  display: block;
+  color: var(--mustard-ink);
+  font-size: 0.875rem;
+}
+.mo-total {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px dashed var(--line-strong);
+  padding-top: 8px;
+  font-weight: 700;
+}
+.mo-reject {
+  display: grid;
+  gap: 10px;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chip {
+  border: 1.5px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  border-radius: 999px;
+  min-height: 40px;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.chip[aria-pressed='true'] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--surface);
+}
+.row-title {
+  display: block;
+  font-weight: 600;
+}
+.row-sub {
+  display: block;
+  font-size: 0.875rem;
+  margin-top: 2px;
+}
+
+/* Carta pública: pedir desde la mesa */
+.pmenu.has-cart { padding-bottom: 96px; }
+.pmenu-side { display: grid; justify-items: end; align-content: start; gap: 8px; }
+.pmenu-add {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1.5px solid var(--primary);
+  background: transparent;
+  color: var(--primary-ink);
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.875rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pmenu-add:active { background: var(--primary-soft); }
+.pmenu-cartbar {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + var(--safe-b));
+  z-index: 15;
+  max-width: 696px;
+  margin: 0 auto;
+  min-height: 56px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--primary);
+  color: var(--on-primary);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  box-shadow: var(--shadow-3);
+  cursor: pointer;
+}
+.pmenu-sent { display: grid; gap: 8px; }
+.pmenu-sent-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+.pmenu-sent-card > div { display: grid; gap: 2px; }
+.pmenu-sent-card span { color: var(--ink-soft); font-size: 0.9375rem; }
+.pmenu-sent-card.is-pending { border-color: var(--mustard); background: var(--mustard-soft); }
+.pmenu-sent-card.is-accepted { border-color: var(--success); background: var(--success-soft); }
+.pmenu-sent-card.is-rejected { border-color: var(--tomato); background: var(--tomato-soft); }
+.cart-lines { display: grid; gap: 10px; }
+.cart-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px dashed var(--line-strong); }
+.cart-line-text { display: grid; gap: 2px; min-width: 0; }
+.cart-line-text .muted { font-size: 0.875rem; }
+.cart-line-price { font-weight: 700; }
+.tile-qr {
+  color: var(--mustard-ink);
+}

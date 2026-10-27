@@ -39,6 +39,12 @@ export type Database = {
         Update: Partial<Database['public']['Tables']['ingredients']['Insert']>
         Relationships: []
       }
+      menu_orders: {
+        Row: { created_at: Ts; customer_name: string | null; handled_at: Ts | null; handled_by: string | null; id: string; items: Json; note: string | null; order_id: string | null; reject_reason: string | null; restaurant_id: string; status: Database['public']['Enums']['menu_order_status']; table_id: string; total: number }
+        Insert: { created_at?: Ts; customer_name?: string | null; handled_at?: Ts | null; handled_by?: string | null; id?: string; items: Json; note?: string | null; order_id?: string | null; reject_reason?: string | null; restaurant_id: string; status?: Database['public']['Enums']['menu_order_status']; table_id: string; total: number }
+        Update: Partial<Database['public']['Tables']['menu_orders']['Insert']>
+        Relationships: []
+      }
       modifier_groups: {
         Row: { created_at: Ts; id: string; max_select: number; min_select: number; name: string; restaurant_id: string; updated_at: Ts }
         Insert: { created_at?: Ts; id?: string; max_select?: number; min_select?: number; name: string; restaurant_id: string; updated_at?: Ts }
@@ -180,7 +186,7 @@ export type Database = {
         Relationships: []
       }
       restaurants: {
-        Row: { address: string | null; created_at: Ts; created_by: string | null; cuit: string | null; currency: string; id: string; is_demo: boolean; legal_name: string | null; menu_note: string | null; menu_public: boolean; menu_slug: string | null; name: string; phone: string | null; timezone: string; updated_at: Ts }
+        Row: { address: string | null; created_at: Ts; created_by: string | null; cuit: string | null; currency: string; id: string; is_demo: boolean; legal_name: string | null; menu_note: string | null; menu_ordering: boolean; menu_public: boolean; menu_slug: string | null; name: string; phone: string | null; timezone: string; updated_at: Ts }
         Insert: { address?: string | null; created_at?: Ts; created_by?: string | null; cuit?: string | null; currency?: string; id?: string; legal_name?: string | null; name: string; phone?: string | null; timezone?: string; updated_at?: Ts }
         Update: Partial<Database['public']['Tables']['restaurants']['Insert']>
         Relationships: []
@@ -218,6 +224,26 @@ export type Database = {
       accept_invite: {
         Args: { p_token: string }
         Returns: string
+      }
+      accept_menu_order: {
+        Args: { p_id: string }
+        Returns: string
+      }
+      public_menu_order: {
+        Args: { p_slug: string; p_table: string; p_items: Json; p_name?: string; p_note?: string }
+        Returns: Json
+      }
+      public_menu_order_status: {
+        Args: { p_id: string }
+        Returns: Json
+      }
+      reject_menu_order: {
+        Args: { p_id: string; p_reason?: string }
+        Returns: undefined
+      }
+      set_menu_ordering: {
+        Args: { p_restaurant: string; p_enabled: boolean }
+        Returns: undefined
       }
       public_menu: {
         Args: { p_slug: string }
@@ -294,6 +320,7 @@ export type Database = {
       iva_condition: 'monotributo' | 'responsable_inscripto'
       invoice_status: 'pending' | 'authorized' | 'rejected'
       mp_charge_status: 'created' | 'processed' | 'canceled' | 'expired' | 'refunded' | 'failed'
+      menu_order_status: 'pending' | 'accepted' | 'rejected'
       member_role: 'owner' | 'manager' | 'cashier' | 'waiter' | 'kitchen'
       order_status: 'open' | 'closed' | 'cancelled'
       order_type: 'dine_in' | 'counter' | 'takeaway' | 'delivery'
